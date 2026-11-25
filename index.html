@@ -1219,6 +1219,9 @@
       } catch {}
     }
 
+    // 로그인 처리가 끝난 뒤에 '#'가 늦게 붙는 경우가 있어서, 몇 번 더 확인해서 지워요
+    [0, 200, 600, 1500, 3000].forEach((ms) => setTimeout(cleanUrlHash, ms));
+
     const { data: { session } } = await supabase.auth.getSession();
     cleanUrlHash();
     await applySession(session);
