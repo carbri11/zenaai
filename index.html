@@ -1161,9 +1161,14 @@
       return !!currentUser?.id;
     }
 
-    async function applySession(session) {
+    async function applySession(session)
+    if (window.location.hash === '#') {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    {
       const nextUser = session?.user || null;
       accessToken = session?.access_token || '';
+      
 
       // 같은 사용자의 토큰 갱신/탭 복귀 이벤트는 무시해요 (대화창을 다시 그리면 답변이 끊겨 보여요)
       if (sessionInit && (user?.id ?? null) === (nextUser?.id ?? null)) {
