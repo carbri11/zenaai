@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="images/favicon.png">
+  <title>ZENA AI</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    *::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+    body, button, header, aside, .logo, .history-item, .attach {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .msg, .msg * {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      cursor: text;
+    }
+    .msg img {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      cursor: zoom-in;
+    }
+    .prompt-bar input[type=text] {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      cursor: text;
+    }
+    ::selection {
+      background: rgba(96, 165, 250, 0.35);
+      color: #ffffff;
+    }
+    html, body {
+      height: 100dvh;
+      min-height: 100dvh;
+      margin: 0;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #f3f4f6;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      flex-shrink: 0;
+      display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 12px 20px; border-bottom: 1px solid #1f2430; background: #131620;
+    }
+    .header-left, .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .logo { font-size: 20px; font-weight: 700; color: #f3f4f6; user-select: none; cursor: default; }
+    .logo span { color: #60a5fa; }
+    .server-status { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #1f2430; color: #9ca3af; }
+    .server-status.online { background: rgba(34,197,94,.15); color: #4ade80; }
+    .server-status.offline { background: rgba(248,113,113,.15); color: #f87171; }
+    .user-badge { font-size: 13px; color: #9ca3af; }
+    button { cursor: pointer; border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px; font-weight: 600; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-outline { background: transparent; color: #e5e7eb; border: 1px solid #374151; }
+    .btn-outline:hover:not(:disabled) { background: #1f2937; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #2563eb; }
+    .btn-stop { background: #dc2626; color: #fff; }
+
+    .workspace { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+    aside {
+      width: 260px; flex-shrink: 0; background: #131620; border-right: 1px solid #1f2430;
+      padding: 14px; display: flex; flex-direction: column; gap: 12px; min-height: 0;
+    }
+    .btn-new-chat { width: 100%; background: #1d2433; color: #f9fafb; border: 1px solid #2e374d; flex-shrink: 0; }
+    .history-title { font-size: 12px; font-weight: 700; color: #9ca3af; padding: 0 6px; flex-shrink: 0; }
+    .history-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .history-empty { font-size: 13px; color: #6b7280; padding: 10px 8px; line-height: 1.5; }
+    .history-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px; cursor: pointer; flex-shrink: 0;
+      padding: 9px 10px; border-radius: 8px; color: #d1d5db; border: 1px solid transparent; font-size: 13px;
+    }
+    .history-item:hover { background: #1a1f2d; }
+    .history-item.active { background: #1e2738; border-color: #3b82f6; color: #fff; }
+    .history-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-del-chat { background: transparent; color: #9ca3af; padding: 2px 6px; font-size: 14px; }
+    .btn-del-chat:hover { background: rgba(248,113,113,.18); color: #f87171; }
+
+    main {
+      position: relative;
+      flex: 1; min-width: 0; max-width: 900px; width: 100%; margin: 0 auto; padding: 16px 20px;
+      display: flex; flex-direction: column; min-height: 0; gap: 12px; overflow: hidden;
+    }
+    .chat-box {
+      position: relative;
+      flex: 1; min-height: 0; background: #161a24; border: 1px solid #232938; border-radius: 14px;
+      padding: 18px; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .scroll-bottom-btn {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 84px;
+      z-index: 20;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border-radius: 999px;
+      background: #232b3d;
+      color: #f3f4f6;
+      border: 1px solid #3a4661;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .scroll-bottom-btn.visible {
+      display: flex;
+    }
+    .scroll-bottom-btn:hover {
+      background: #2d374e;
+      border-color: #60a5fa;
+    }
+
+    .login-gate {
+      margin: auto; max-width: 420px; width: 100%;
+      background: #131722; border: 1px solid #2a3246; border-radius: 14px;
+      padding: 28px 24px; text-align: center; display: flex; flex-direction: column; gap: 12px;
+    }
+    .login-gate h2 { margin: 0; font-size: 18px; color: #f9fafb; }
+    .login-gate p { margin: 0; font-size: 14px; color: #9ca3af; line-height: 1.6; }
+    .login-gate-actions { display: flex; justify-content: center; gap: 10px; margin-top: 6px; }
+
+    .hint { margin: auto; color: #6b7280; text-align: center; font-size: 14px; line-height: 1.6; }
+    .hint b { color: #9ca3af; }
+    .msg {
+      padding: 12px 16px; border-radius: 12px; max-width: 82%; line-height: 1.55; flex-shrink: 0;
+      font-size: 15px; white-space: pre-wrap; word-break: break-word;
+    }
+    .msg .txt, .msg .chip, .msg .note {
+      display: inline;
+    }
+    .prompt-bar input[type=text] { flex: 1; background: transparent; border: none; color: #fff; font-size: 15px; outline: none; padding: 6px 8px; min-width: 0; user-select: text; -webkit-user-select: text; }
+    .prompt-bar.locked { opacity: .55; pointer-events: none; }
+    .msg.ai { background: #1f2533; color: #e5e7eb; align-self: flex-start; }
+    .msg.user { background: #2563eb; color: #fff; align-self: flex-end; }
+    .msg.err { background: rgba(248,113,113,.15); color: #fca5a5; align-self: flex-start; }
+    .msg.wait .txt { color: #9ca3af; }
+    .msg .chip { display: inline-block; font-size: 12px; background: rgba(255,255,255,.18); border-radius: 6px; padding: 2px 8px; margin: 6px 6px 0 0; }
+    .msg img {
+      display: block; max-width: 240px; max-height: 240px; object-fit: contain;
+      border-radius: 8px; margin-top: 8px; cursor: zoom-in;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .msg img:hover {
+      transform: scale(1.02);
+      border-color: #60a5fa;
+    }
+    .img-lightbox {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(5, 7, 12, 0.88);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .img-lightbox.open { display: flex; }
+    .img-lightbox-inner {
+      position: relative; max-width: 92vw; max-height: 90vh;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .img-lightbox img {
+      max-width: 92vw; max-height: 82vh;
+      border-radius: 10px; object-fit: contain;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+    }
+    .img-lightbox-meta {
+      color: #d1d5db; font-size: 13px; text-align: center;
+    }
+    .img-lightbox-close {
+      position: fixed; top: 18px; right: 22px;
+      background: rgba(29, 36, 51, 0.92); color: #f9fafb;
+      border: 1px solid #374151; border-radius: 999px;
+      width: 38px; height: 38px; padding: 0;
+      font-size: 20px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .img-lightbox-close:hover { background: #dc2626; border-color: #ef4444; }
+    .msg .note { display: block; margin-top: 8px; font-size: 12px; color: #fbbf24; }
+
+    .attach-row { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+    .attach-row:empty { display: none; }
+    .attach { display: flex; align-items: center; gap: 6px; background: #1d2433; border: 1px solid #2e374d; border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+    .attach img { height: 28px; border-radius: 4px; }
+    .attach button { background: transparent; color: #9ca3af; padding: 0 4px; }
+
+    .prompt-bar {
+      flex-shrink: 0;
+      display: flex; gap: 8px; align-items: center; background: #161a24; border: 1px solid #2a3142;
+      border-radius: 12px; padding: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    .btn-attach { background: #1d2433; color: #e5e7eb; padding: 8px 12px; }
+
+    @media (max-width: 760px) {
+      .workspace { flex-direction: column; }
+      aside { width: 100%; border-right: none; border-bottom: 1px solid #1f2430; max-height: 150px; }
+      main { padding: 12px; }
+      .msg { max-width: 94%; }
+      .scroll-bottom-btn { bottom: 76px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="logo">ZENA <span>AI</span></div>
+      <span id="server-status" class="server-status">서버 확인 중...</span>
+    </div>
+
+    <div id="guest-nav" class="nav-actions">
+      <button id="open-login-btn" class="btn-outline" type="button">로그인</button>
+      <button id="open-signup-btn" class="btn-primary" type="button">회원가입</button>
+    </div>
+
+    <div id="user-nav" class="nav-actions" style="display:none">
+      <span id="user-email" class="user-badge"></span>
+      <button id="btn-logout" class="btn-outline" type="button">로그아웃</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside>
+      <button id="btn-new-chat" class="btn-new-chat" type="button">+ 새 채팅</button>
+      <div class="history-title">내 채팅 내역</div>
+      <div id="history-list" class="history-list"></div>
+    </aside>
+
+    <main>
+      <div id="chat-box" class="chat-box"></div>
+      <button id="scroll-bottom-btn" class="scroll-bottom-btn" type="button" title="맨 아래로 이동" aria-label="맨 아래로 이동">↓</button>
+      <div id="attach-row" class="attach-row"></div>
+      <form id="prompt-form" class="prompt-bar">
+        <button id="attach-btn" type="button" class="btn-attach" title="파일/이미지 첨부">📎</button>
+        <input id="file-input" type="file" multiple hidden
+               accept="image/*,.txt,.md,.py,.js,.ts,.csv,.json,.log,.html,.css,.xml,.yaml,.yml,.ini,.sh,.java,.c,.cpp,.cs,.sql" />
+        <input id="prompt-input" type="text" placeholder="메시지를 입력하세요..." autocomplete="off" />
+        <button id="send-btn" type="submit" class="btn-primary">전송</button>
+      </form>
+    </main>
+  </div>
+
+  <div id="img-lightbox" class="img-lightbox" role="dialog" aria-modal="true" aria-label="이미지 확대 보기">
+    <button id="img-lightbox-close" class="img-lightbox-close" type="button" title="닫기">×</button>
+    <div class="img-lightbox-inner">
+      <img id="img-lightbox-view" alt="첨부 이미지 확대 보기" />
+      <div id="img-lightbox-meta" class="img-lightbox-meta"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const supabase = createClient(
+      'https://vaavajitxupofylpbkxc.supabase.co',
+      'sb_publishable_htUIneIFWtfmMz7khGtDww_yu2Xlhpe'
+    );
+
+    // ---- 설정 ----
+    const WORKER_URL = 'https://zena-chat-memory.zena-ai.workers.dev';
+    const LOGIN_PAGE = 'login.html';
+    const SIGNUP_PAGE = 'signup.html';
+    const SYSTEM_MSG = { role: 'system', content: '당신은 친절하고 정확한 AI 어시스턴트 ZENA AI입니다. 한국어로 답하세요.' };
+    const CONTINUE_PROMPT = '앞의 답변을 끊긴 부분부터 바로 이어서 작성해 줘. 중복은 피하고 이어서만 써.';
+    // ※ CTX_TOKENS는 코랩 코드의 CTX 값과 같아야 해요. 한글은 토큰당 약 1.5자로 넉넉히 잡았어요.
+    const CTX_TOKENS = 4096;
+    const MAX_OUT = 1024;
+    const CHARS_PER_TOKEN = 1.5;
+    const INPUT_CHARS = Math.floor((CTX_TOKENS - MAX_OUT - 500) * CHARS_PER_TOKEN);  // 시스템/이미지/여유분 500토큰 제외
+    const MAX_CHARS = INPUT_CHARS;
+    const FILE_CHARS = Math.floor(INPUT_CHARS * 0.6);
+    const TOTAL_FILE_CHARS = Math.floor(INPUT_CHARS * 0.7);
+    const MAX_IMAGES = 2;
+    const FILE_READ_LIMIT = 300000;   // 큰 파일은 앞부분만 읽어서 브라우저가 멈추지 않게
+    // Worker가 Authorization 헤더를 허용/검증하도록 고친 뒤에 true로 바꾸세요 (설명 참고)
+    const SEND_JWT = false;
+    const AUTO_LOGIN_KEY = 'zena_auto_login';
+    const SESSION_ALIVE_KEY = 'zena_session_alive';
+    const MAX_AUTO_CONTINUES = 6;   // 길이 제한/연결 끊김 때 자동으로 이어 쓰는 최대 횟수
+    const MAX_NET_RETRIES = 2;      // 첫 글자 전에 네트워크 오류가 나면 다시 시도하는 횟수
+    const STALL_MS = 45000;         // 글자가 오다가 이 시간 동안 아무것도 안 오면 끊긴 것으로 보고 이어쓰기
+    const STALE_MS = 120000;
+    const TITLE_SRC_CHARS = 300;
+    const TITLE_MAX_CHARS = 30;
+    const TEXT_EXT = /\.(txt|md|py|js|ts|csv|json|log|html|css|xml|yaml|yml|ini|sh|java|c|cpp|cs|sql)$/i;
+
+    const $ = (id) => document.getElementById(id);
+    const chatBox = $('chat-box'), historyListEl = $('history-list'), attachRow = $('attach-row');
+    const promptInput = $('prompt-input'), sendBtn = $('send-btn'), fileInput = $('file-input');
+    const serverStatus = $('server-status'), promptForm = $('prompt-form');
+    const scrollBottomBtn = $('scroll-bottom-btn');
+
+    // ---- 상태 ----
+    let user = null, allowed = true, accessCheckFailed = false, accessToken = '', accessErrorMsg = '';
+    let server = { url: '', api_key: '', online: false };
+    let chats = [];
+    let activeId = crypto.randomUUID(), messages = [], pending = [];
+    let busy = false, ctl = null, userAborted = false;
+    let live = null;                 // 지금 답변이 써지는 말풍선 { msg, bubble, txt }
+    let lastData = Date.now();       // 마지막으로 서버에서 데이터가 온 시각
+    let flushQueued = false;
+    let sessionInit = false, sessionSeq = 0;
+    const needTitle = new Set([activeId]);
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    function isLoggedIn() {
+      return !!(user && user.id);
+    }
+
+    function canUseChat() {
+      return isLoggedIn() && allowed;
+    }
+
+    function authHeaders() {
+      return (SEND_JWT && accessToken) ? { Authorization: `Bearer ${accessToken}` } : {};
+    }
+
+    function apiHeaders(extra = {}) {
+      return {
+        'Content-Type': 'application/json',
+        'X-User-Id': user?.id || '',
+        ...authHeaders(),
+        ...extra,
+      };
+    }
+
+    // ---- 스크롤 ----
+    let followBottom = true;
+
+    function distanceFromBottom() {
+      return chatBox.scrollHeight - chatBox.clientHeight - chatBox.scrollTop;
+    }
+
+    function updateScrollButton() {
+      const hasOverflow = chatBox.scrollHeight > chatBox.clientHeight + 24;
+      const showBtn = hasOverflow && distanceFromBottom() > 220;
+      scrollBottomBtn.classList.toggle('visible', showBtn);
+    }
+
+    function syncScrollState() {
+      const dist = distanceFromBottom();
+      followBottom = dist <= 36;
+      updateScrollButton();
+    }
+
+    chatBox.addEventListener('scroll', syncScrollState, { passive: true });
+    chatBox.addEventListener('wheel', (e) => {
+      if (e.deltaY < 0) {
+        followBottom = false;
+      }
+      updateScrollButton();
+    }, { passive: true });
+    chatBox.addEventListener('touchmove', syncScrollState, { passive: true });
+
+    function scrollChatToBottom(force = false) {
+      if (force) {
+        followBottom = true;
+        chatBox.scrollTop = chatBox.scrollHeight;
+        updateScrollButton();
+        return;
+      }
+      if (!followBottom) {
+        updateScrollButton();
+        return;
+      }
+      chatBox.scrollTop = chatBox.scrollHeight;
+      updateScrollButton();
+    }
+
+    scrollBottomBtn.addEventListener('click', () => {
+      scrollChatToBottom(true);
+    });
+
+    // ---- 답변 화면 갱신 (프레임당 1번으로 묶음) ----
+    function flushLive() {
+      flushQueued = false;
+      if (!live) return;
+      live.txt.textContent = live.msg.text;
+      scrollChatToBottom(false);
+    }
+
+    function queueFlush() {
+      if (flushQueued) return;
+      flushQueued = true;
+      requestAnimationFrame(flushLive);   // 숨겨진 탭에서는 보류되고, 돌아오면 바로 실행돼요
+    }
+
+    // 다른 창에 갔다가 돌아왔을 때
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      lastData = Date.now();              // 돌아온 직후 '멈춤' 오판 방지
+      if (live) flushLive();
+      else if (followBottom) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+        updateScrollButton();
+      }
+      pollServer();
+    });
+
+    // 답변 중에 창을 닫거나 새로고침하려 할 때 확인
+    window.addEventListener('beforeunload', (e) => {
+      if (busy) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    // ---- 상태 표시 ----
+    function getUserDisplayLabel(u) {
+      if (!u) return '';
+      const nick = u.user_metadata?.nickname || u.user_metadata?.display_name || u.user_metadata?.full_name || '';
+      return nick ? `${nick} (${u.email})` : (u.email || '');
+    }
+
+    function setStatus(text, cls) { serverStatus.textContent = text; serverStatus.className = 'server-status ' + (cls || ''); }
+
+    function refreshStatusLabel() {
+      if (!isLoggedIn()) return setStatus('로그인 필요', 'offline');
+      if (accessCheckFailed) return setStatus('권한 확인 실패', 'offline');
+      if (!allowed) return setStatus('접근 권한 없음', 'offline');
+      if (server.online) setStatus('AI 서버 온라인', 'online');
+      else setStatus('AI 서버 오프라인', 'offline');
+    }
+
+    function updateUi() {
+      const loggedIn = isLoggedIn();
+      const usable = canUseChat();
+      $('guest-nav').style.display = loggedIn ? 'none' : 'flex';
+      $('user-nav').style.display = loggedIn ? 'flex' : 'none';
+      $('user-email').textContent = getUserDisplayLabel(user);
+
+      promptInput.disabled = !usable || busy;
+      promptInput.placeholder = loggedIn ? '메시지를 입력하세요...' : '로그인 후 채팅을 이용할 수 있어요.';
+      sendBtn.disabled = !usable;
+      $('attach-btn').disabled = !usable || busy;
+      $('btn-new-chat').disabled = !usable;
+      promptForm.classList.toggle('locked', !usable);
+      refreshStatusLabel();
+    }
+
+    // ---- 서버 주소 ----
+    async function pollServer() {
+      if (!canUseChat()) return;
+      try {
+        const res = await fetch(`${WORKER_URL}/api/server`, { headers: authHeaders() });
+        if (res.ok) {
+          const d = await res.json();
+          const updMs = d.updated_at ? new Date(d.updated_at).getTime() : 0;
+          const fresh = !updMs || (Date.now() - updMs < STALE_MS);
+          const nextUrl = String(d.url || '').replace(/\/+$/, '');
+          if (nextUrl) {
+            server = {
+              url: nextUrl,
+              api_key: d.api_key || '',
+              online: !!(d.online && fresh),
+            };
+            refreshStatusLabel();
+            return;
+          }
+        }
+      } catch {}
+
+      try {
+        const { data, error } = await supabase.from('server_config')
+          .select('url,api_key,online,updated_at').eq('id', 'main').maybeSingle();
+        if (error || !data) {
+          server = { ...server, online: false };   // 주소는 지우지 않고 오프라인으로만 표시
+        } else {
+          const fresh = !data.updated_at || (Date.now() - new Date(data.updated_at).getTime() < STALE_MS);
+          server = {
+            url: String(data.url || '').replace(/\/+$/, '') || server.url,
+            api_key: data.api_key || server.api_key,
+            online: !!(data.online && data.url && fresh),
+          };
+        }
+      } catch {
+        server = { ...server, online: false };
+      }
+      refreshStatusLabel();
+    }
+    setInterval(() => { if (!document.hidden) pollServer(); }, 10000);
+
+    // ---- 채팅 목록 / 저장 ----
+    async function loadChats() {
+      if (!canUseChat()) { chats = []; renderHistory(); return; }
+      try {
+        const res = await fetch(`${WORKER_URL}/api/sessions`, { headers: apiHeaders() });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        chats = (data.sessions || []).map((s) => ({
+          id: s.session_id,
+          title: s.title || s.session_id,
+          updated_at: s.updated_at || null,
+        }));
+      } catch (err) {
+        console.error('채팅 목록 로드 실패:', err);
+        chats = [];
+      }
+      renderHistory();
+    }
+
+    function renderHistory() {
+      historyListEl.innerHTML = '';
+      if (!chats.length) {
+        const d = document.createElement('div'); d.className = 'history-empty';
+        d.textContent = isLoggedIn() ? '저장된 채팅이 없어요.' : '로그인하면 내 채팅 내역을 볼 수 있어요.';
+        historyListEl.appendChild(d); return;
+      }
+      chats.forEach((c) => {
+        const item = document.createElement('div');
+        item.className = 'history-item' + (c.id === activeId ? ' active' : '');
+        item.title = c.title;
+        const label = document.createElement('span'); label.className = 'history-label'; label.textContent = c.title;
+        const del = document.createElement('button'); del.className = 'btn-del-chat'; del.type = 'button'; del.textContent = '×';
+        del.addEventListener('click', (e) => { e.stopPropagation(); deleteChat(c.id); });
+        item.addEventListener('click', () => openChat(c.id));
+        item.append(label, del); historyListEl.appendChild(item);
+      });
+    }
+
+    async function openChat(id) {
+      if (busy || !canUseChat()) return;
+      try {
+        const res = await fetch(`${WORKER_URL}/api/continue?session_id=${encodeURIComponent(id)}`, {
+          headers: apiHeaders(),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        activeId = id;
+        messages = (data.recentMessages || []).map(restoreMessage);
+        pending = [];
+        followBottom = true;
+        renderPending(); renderHistory(); renderChat(true);
+      } catch (err) {
+        addBubble('대화 불러오기 실패: ' + err.message, 'err');
+      }
+    }
+
+    // 저장된 사용자 메시지는 "질문\n\n[첨부 파일: 이름]\n내용..." 형태라서, 화면에는 질문 + 칩으로만 보여줘요
+    function restoreMessage(m) {
+      const content = m.content || '';
+      if (m.role !== 'user') return { role: 'assistant', text: content };
+      const idx = content.indexOf('\n\n[첨부 파일: ');
+      const imgNote = content.match(/\n*\(이미지 (\d+)장 첨부\)\s*$/);
+      if (idx < 0 && !imgNote) return { role: 'user', text: content, ai: content };
+      const head = idx >= 0 ? content.slice(0, idx) : content.replace(/\n*\(이미지 \d+장 첨부\)\s*$/, '');
+      const files = [...content.matchAll(/\[첨부 파일: ([^\]\n]+)\]/g)].map((x) => x[1]);
+      return { role: 'user', text: head, ai: content, files, imgCount: imgNote ? Number(imgNote[1]) : 0 };
+    }
+
+    function newChat() {
+      if (busy || !canUseChat()) return;
+      activeId = crypto.randomUUID(); messages = []; pending = [];
+      needTitle.add(activeId);
+      followBottom = true;
+      renderPending(); renderHistory(); renderChat(true); promptInput.focus();
+    }
+
+    async function deleteChat(id) {
+      if (busy || !canUseChat()) return;
+      try {
+        await fetch(`${WORKER_URL}/api/session?session_id=${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: apiHeaders(),
+        });
+      } catch (err) {
+        addBubble('대화 삭제 실패: ' + err.message, 'err');
+      }
+      chats = chats.filter((c) => c.id !== id);
+      needTitle.delete(id);
+      if (activeId === id) newChat(); else renderHistory();
+    }
+
+    async function saveChat(userText, assistantText) {
+      if (!canUseChat()) return false;
+      const existing = chats.find((c) => c.id === activeId);
+      const title = existing?.title || (userText || '새 채팅').slice(0, 26);
+      const res = await fetch(`${WORKER_URL}/api/turn`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          session_id: activeId,
+          title,
+          user_text: userText,
+          assistant_text: assistantText,
+        }),
+      });
+      if (!res.ok) {
+        addBubble(`대화 저장 실패 (${res.status})`, 'err');
+        return false;
+      }
+      const nowIso = new Date().toISOString();
+      const i = chats.findIndex((c) => c.id === activeId);
+      if (i >= 0) chats.splice(i, 1);
+      chats.unshift({ id: activeId, title, updated_at: nowIso });
+      renderHistory();
+      return true;
+    }
+
+    async function generateTitle(id, userText, aiText, url, key) {
+      if (!url || !canUseChat()) return;
+      const ctl2 = new AbortController();
+      const timer = setTimeout(() => ctl2.abort(), 90000);
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (key) headers['Authorization'] = `Bearer ${key}`;
+        const prompt =
+          '아래 대화의 주제를 2~6단어의 짧은 한국어 제목으로 만들어줘. ' +
+          '제목만 한 줄로 출력하고, 따옴표·마침표·설명은 쓰지 마.\n\n' +
+          `사용자: ${userText.slice(0, TITLE_SRC_CHARS)}\nAI: ${aiText.slice(0, TITLE_SRC_CHARS)}`;
+        const res = await fetch(`${url}/v1/chat/completions`, {
+          method: 'POST', headers, signal: ctl2.signal,
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: prompt }],
+            stream: false, max_tokens: 24, temperature: 0.3,
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        let title = (data?.choices?.[0]?.message?.content || '')
+          .split('\n').map((s) => s.trim()).find(Boolean) || '';
+        title = title
+          .replace(/^제목\s*[:：]\s*/, '')
+          .replace(/^[#*"'“”‘’`\s]+/, '')
+          .replace(/[#*"'“”‘’`.。\s]+$/, '')
+          .slice(0, TITLE_MAX_CHARS);
+        if (!title) return;
+        const entry = chats.find((c) => c.id === id);
+        if (!entry) return;
+        entry.title = title;
+        renderHistory();
+        await fetch(`${WORKER_URL}/api/turn`, {
+          method: 'POST',
+          headers: apiHeaders(),
+          body: JSON.stringify({ session_id: id, title, user_text: '', assistant_text: '' }),
+        });
+      } catch {}
+      finally { clearTimeout(timer); }
+    }
+
+    // ---- 이미지 확대 ----
+    const lightboxEl = $('img-lightbox');
+    const lightboxImgEl = $('img-lightbox-view');
+    const lightboxMetaEl = $('img-lightbox-meta');
+    const lightboxCloseBtn = $('img-lightbox-close');
+
+    function openLightbox(src, name = '') {
+      if (!src) return;
+      lightboxImgEl.src = src;
+      lightboxMetaEl.textContent = name ? `${name} · 클릭하거나 ESC로 닫기` : '클릭하거나 ESC로 닫기';
+      lightboxEl.classList.add('open');
+    }
+
+    function closeLightbox() {
+      lightboxEl.classList.remove('open');
+      lightboxImgEl.src = '';
+    }
+
+    lightboxCloseBtn.addEventListener('click', closeLightbox);
+    lightboxEl.addEventListener('click', (e) => {
+      if (e.target === lightboxEl) closeLightbox();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && lightboxEl.classList.contains('open')) closeLightbox();
+    });
+
+    // ---- 렌더링 ----
+    function buildBubble(m) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + (m.role === 'user' ? 'user' : 'ai');
+      const t = document.createElement('span'); t.className = 'txt'; t.textContent = m.text || ''; div.appendChild(t);
+      (m.files || []).forEach((n) => { const c = document.createElement('span'); c.className = 'chip'; c.textContent = '📄 ' + n; div.appendChild(c); });
+      if (m.imgCount && !(m.images && m.images.length) && !(m.thumbs && m.thumbs.length)) {
+        const c = document.createElement('span'); c.className = 'chip'; c.textContent = `🖼 이미지 ${m.imgCount}장`; div.appendChild(c);
+      }
+      const previewSources = (m.images && m.images.length) ? m.images : (m.thumbs || []);
+      previewSources.forEach((src, idx) => {
+        const im = document.createElement('img');
+        const thumbSrc = (m.thumbs && m.thumbs[idx]) ? m.thumbs[idx] : src;
+        im.src = thumbSrc;
+        im.alt = `첨부 이미지 ${idx + 1}`;
+        im.title = '클릭해서 크게 보기';
+        im.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openLightbox(src, `이미지 ${idx + 1}`);
+        });
+        div.appendChild(im);
+      });
+      return div;
+    }
+
+    function addBubble(text, cls) {
+      const div = document.createElement('div'); div.className = 'msg ' + cls; div.textContent = text;
+      chatBox.appendChild(div);
+      scrollChatToBottom(true);
+      return div;
+    }
+
+    function setHint(lines) {
+      const h = document.createElement('div'); h.className = 'hint';
+      lines.forEach((l, i) => {
+        if (i) h.appendChild(document.createElement('br'));
+        if (typeof l === 'string') h.appendChild(document.createTextNode(l));
+        else { const b = document.createElement('b'); b.textContent = l.bold; h.appendChild(b); }
+      });
+      chatBox.appendChild(h);
+    }
+
+    function renderLoginGate() {
+      const gate = document.createElement('div');
+      gate.className = 'login-gate';
+
+      const title = document.createElement('h2');
+      title.textContent = '로그인이 필요한 서비스예요';
+
+      const desc = document.createElement('p');
+      desc.textContent = '로그인해야 대화창을 이용하고, 저장된 대화 기록을 불러올 수 있어요.';
+
+      const actions = document.createElement('div');
+      actions.className = 'login-gate-actions';
+
+      const loginBtn = document.createElement('button');
+      loginBtn.type = 'button';
+      loginBtn.className = 'btn-primary';
+      loginBtn.textContent = '로그인하기';
+      loginBtn.addEventListener('click', () => { location.href = LOGIN_PAGE; });
+
+      const signupBtn = document.createElement('button');
+      signupBtn.type = 'button';
+      signupBtn.className = 'btn-outline';
+      signupBtn.textContent = '회원가입';
+      signupBtn.addEventListener('click', () => { location.href = SIGNUP_PAGE; });
+
+      actions.append(loginBtn, signupBtn);
+      gate.append(title, desc, actions);
+      chatBox.appendChild(gate);
+    }
+
+    function renderChat(forceScroll = false) {
+      chatBox.innerHTML = '';
+      if (!isLoggedIn()) {
+        renderLoginGate();
+        updateScrollButton();
+        return;
+      }
+      if (accessCheckFailed) {
+        setHint(['권한을 확인하지 못했어요.', '오류: ' + (accessErrorMsg || '알 수 없음'), '새로고침해도 같으면 이 오류 문구를 알려 주세요.']);
+        updateScrollButton();
+        return;
+      }
+      if (!allowed) {
+        setHint(['이 계정은 아직 사용 권한이 없어요.', { bold: user.email }, '관리자가 허용 목록에 이 이메일을 추가하면 사용할 수 있어요.', '다른 계정으로 쓰려면 로그아웃해 주세요.']);
+        updateScrollButton();
+        return;
+      }
+      if (!messages.length) {
+        setHint(['무엇을 도와드릴까요?', '📎로 파일·이미지를 첨부할 수 있어요.']);
+        updateScrollButton();
+        return;
+      }
+      // 답변이 써지는 중인 말풍선은 새로 만들지 않고 그대로 다시 붙여서, 화면이 끊기지 않게 해요
+      messages.forEach((m) => chatBox.appendChild(live && m === live.msg ? live.bubble : buildBubble(m)));
+      scrollChatToBottom(forceScroll);
+    }
+
+    function renderPending() {
+      attachRow.innerHTML = '';
+      pending.forEach((p, i) => {
+        const el = document.createElement('div'); el.className = 'attach';
+        if (p.kind === 'img') { const im = document.createElement('img'); im.src = p.thumb; el.appendChild(im); }
+        const n = document.createElement('span'); n.textContent = p.name; el.appendChild(n);
+        const x = document.createElement('button'); x.type = 'button'; x.textContent = '×';
+        x.addEventListener('click', () => { pending.splice(i, 1); renderPending(); });
+        el.appendChild(x); attachRow.appendChild(el);
+      });
+    }
+
+    // ---- 첨부 ----
+    async function shrinkImage(file, maxSide, quality) {
+      const bmp = await createImageBitmap(file);
+      const s = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', quality);
+    }
+
+    async function attachFiles(fileList) {
+      if (!canUseChat()) return;
+      let added = false;
+      for (const f of fileList) {
+        try {
+          if (f.type.startsWith('image/')) {
+            if (pending.filter((p) => p.kind === 'img').length >= MAX_IMAGES) { addBubble(`이미지는 최대 ${MAX_IMAGES}장까지예요.`, 'err'); continue; }
+            const imgName = f.name && f.name !== 'image.png' ? f.name : `pasted-image-${Date.now()}.png`;
+            pending.push({ kind: 'img', name: imgName, full: await shrinkImage(f, 1024, 0.85), thumb: await shrinkImage(f, 160, 0.7) });
+            added = true;
+          } else if (TEXT_EXT.test(f.name)) {
+            pending.push({ kind: 'file', name: f.name, text: await f.slice(0, FILE_READ_LIMIT).text() });
+            added = true;
+          } else {
+            addBubble(`지원하지 않는 형식이에요: ${f.name}`, 'err');
+          }
+        } catch { addBubble(`첨부 실패: ${f.name}`, 'err'); }
+      }
+      if (added) renderPending();
+    }
+
+    $('attach-btn').addEventListener('click', () => {
+      if (!canUseChat()) return;
+      fileInput.click();
+    });
+    fileInput.addEventListener('change', async () => {
+      await attachFiles(fileInput.files);
+      fileInput.value = '';
+    });
+
+    window.addEventListener('paste', async (e) => {
+      if (!canUseChat()) return;
+      const items = e.clipboardData?.items;
+      if (!items?.length) return;
+      const pastedImages = [];
+      for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) pastedImages.push(file);
+        }
+      }
+      if (!pastedImages.length) return;
+      if (document.activeElement === promptInput) {
+        e.preventDefault();
+      }
+      await attachFiles(pastedImages);
+    });
+
+    // ---- AI 요청 ----
+    function toApi(m, withImages = true) {
+      if (m.role === 'assistant') return { role: 'assistant', content: m.text };
+      if (withImages && m.images?.length) {
+        return { role: 'user', content: [{ type: 'text', text: m.ai }, ...m.images.map((u) => ({ type: 'image_url', image_url: { url: u } }))] };
+      }
+      return { role: 'user', content: m.ai ?? m.text };
+    }
+
+    function buildPayload(hist, dropOldestTurns = 0) {
+      const trimmedHist = dropOldestTurns > 0 ? hist.slice(dropOldestTurns * 2) : hist;
+      let budget = MAX_CHARS;
+      const picked = [];
+      for (let i = trimmedHist.length - 1; i >= 0; i--) {
+        const len = (trimmedHist[i].ai ?? trimmedHist[i].text ?? '').length;
+        if (picked.length && budget - len < 0) break;
+        budget -= len;
+        picked.unshift(trimmedHist[i]);
+      }
+      while (picked.length && picked[0].role !== 'user') picked.shift();
+      if (!picked.length && hist.length) {
+        const lastUser = [...hist].reverse().find((m) => m.role === 'user');
+        if (lastUser) picked.push(lastUser);
+      }
+      // 이미지는 가장 최근 이미지 메시지에만 다시 보내요 (컨텍스트/속도 절약)
+      let lastImgIdx = -1;
+      picked.forEach((m, i) => { if (m.images?.length) lastImgIdx = i; });
+      return [SYSTEM_MSG, ...picked.map((m, i) => toApi(m, i === lastImgIdx))];
+    }
+
+    function isContextOverflowError(err) {
+      return Boolean(err?.isContextOverflow) || /exceed|context|too long|max.*tokens/i.test(err?.message || '');
+    }
+
+    function isNetworkError(err) {
+      return Boolean(err?.transient) || err?.name === 'TypeError' || /network|failed to fetch|load failed|연결/i.test(err?.message || '');
+    }
+
+    function setBusy(v) {
+      busy = v;
+      sendBtn.textContent = v ? '중지' : '전송';
+      sendBtn.className = v ? 'btn-stop' : 'btn-primary';
+      const usable = canUseChat();
+      promptInput.disabled = v || !usable;
+      $('attach-btn').disabled = v || !usable;
+    }
+
+    /**
+     * 서버에 한 번 요청해서 글자를 받아 aiMsg.text에 이어 붙여요.
+     * 반환: 'done'(정상 종료) | 'cut'(길이 제한으로 끊김) | 'dropped'(종료 신호 없이 끊김)
+     */
+    async function streamSegment(url, headers, payloadMsgs, aiMsg, turn) {
+      ctl = new AbortController();
+      const res = await fetch(`${url}/v1/chat/completions`, {
+        method: 'POST',
+        headers,
+        signal: ctl.signal,
+        body: JSON.stringify({ messages: payloadMsgs, stream: true, max_tokens: MAX_OUT }),
+      });
+      if (!res.ok) {
+        let body = '';
+        try { body = (await res.text()).slice(0, 200); } catch {}
+        const isOverflow = /exceed|context|too long|max.*tokens/i.test(body);
+        const reqErr = new Error(
+          isOverflow ? '대화가 너무 길어요. 새 채팅을 시작해 주세요.' : `서버 응답 오류 (${res.status}) ${body}`
+        );
+        reqErr.isContextOverflow = isOverflow;
+        if ([502, 503, 504, 524].includes(res.status)) {
+          reqErr.transient = true;
+          reqErr.message = `서버 연결이 불안정해요 (${res.status}). 잠시 후 다시 시도해 주세요.`;
+        }
+        throw reqErr;
+      }
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '', segTokens = 0, sawEnd = false, cut = false;
+      lastData = Date.now();
+
+      // 글자가 오다가 한참 아무것도 안 오면(연결이 조용히 끊김) 요청을 끊고 이어쓰기로 넘어가요
+      const watchdog = setInterval(() => {
+        if (segTokens > 0 && Date.now() - lastData > STALL_MS) ctl?.abort();
+      }, 5000);
+
+      const handleLine = (line) => {
+        const t = line.trim();
+        if (!t.startsWith('data:')) return;
+        const d = t.slice(5).trim();
+        if (!d) return;
+        if (d === '[DONE]') { sawEnd = true; return; }
+        let j;
+        try { j = JSON.parse(d); } catch { return; }
+        const ch = j.choices?.[0];
+        if (ch?.delta?.reasoning_content && !turn.gotToken) turn.thinking = true;
+        if (ch?.delta?.content) {
+          segTokens++;
+          if (!turn.gotToken) {
+            turn.gotToken = true;
+            live?.bubble.classList.remove('wait');
+          }
+          aiMsg.text += ch.delta.content;
+          queueFlush();
+        }
+        if (ch?.finish_reason) {
+          sawEnd = true;
+          if (ch.finish_reason === 'length') cut = true;
+        }
+      };
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          lastData = Date.now();
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() || '';
+          for (const line of lines) handleLine(line);
+        }
+        if (buf.trim()) handleLine(buf);
+      } finally {
+        clearInterval(watchdog);
+      }
+
+      if (cut) return 'cut';
+      if (!sawEnd) {
+        if (!aiMsg.text.trim()) throw new TypeError('연결이 끊겼어요');
+        return 'dropped';
+      }
+      return 'done';
+    }
+
+    function finishLiveBubble(aiMsg) {
+      if (!live) return;
+      live.bubble.classList.remove('wait');
+      live.txt.textContent = aiMsg.text;
+      scrollChatToBottom(false);
+    }
+
+    promptForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (busy) {
+        userAborted = true;
+        ctl?.abort();
+        return;
+      }
+      if (!canUseChat()) {
+        addBubble('로그인 후 메시지를 보낼 수 있어요.', 'err');
+        return;
+      }
+
+      let text = promptInput.value.trim();
+      if (!text && !pending.length) return;
+      if (!text) text = '첨부한 내용을 봐줘.';
+
+      await pollServer();
+      if (!server.online || !server.url) {
+        addBubble('AI 서버가 꺼져 있어요. 코랩을 실행해 주세요.', 'err');
+        return;
+      }
+      // 이번 답변 동안은 주소를 고정해서, 중간에 폴링이 바꿔도 영향이 없게 해요
+      const turnUrl = server.url, turnKey = server.api_key;
+
+      const files = pending.filter((p) => p.kind === 'file');
+      const imgs = pending.filter((p) => p.kind === 'img');
+      let ai = text, fileBudget = TOTAL_FILE_CHARS;
+      for (const f of files) {
+        const t = f.text.slice(0, Math.max(0, Math.min(FILE_CHARS, fileBudget)));
+        fileBudget -= t.length;
+        ai += `\n\n[첨부 파일: ${f.name}]\n${t}${f.text.length > t.length ? '\n...(이하 생략)' : ''}`;
+      }
+      if (imgs.length) ai += `\n\n(이미지 ${imgs.length}장 첨부)`;
+
+      const userMsg = {
+        role: 'user',
+        text,
+        ai,
+        files: files.map((f) => f.name),
+        thumbs: imgs.map((i) => i.thumb),
+        images: imgs.map((i) => i.full),
+      };
+      const aiMsg = { role: 'assistant', text: '' };
+      const backupText = promptInput.value;
+      const backupPending = [...pending];
+
+      userAborted = false;
+      followBottom = true;
+      messages.push(userMsg);
+      promptInput.value = '';
+      pending = [];
+      renderPending();
+      renderChat(true);
+
+      const bubble = buildBubble(aiMsg);
+      bubble.classList.add('wait');
+      live = { msg: aiMsg, bubble, txt: bubble.querySelector('.txt') };
+      chatBox.appendChild(bubble);
+      messages.push(aiMsg);
+      scrollChatToBottom(true);
+
+      const startT = Date.now();
+      const turn = { gotToken: false, thinking: false };
+      let titleJob = null;
+      live.txt.textContent = '응답 대기 중 · 0초';
+
+      const timer = setInterval(() => {
+        try {
+          if (turn.gotToken || !live) return;
+          const s = Math.floor((Date.now() - startT) / 1000);
+          live.txt.textContent = (turn.thinking ? '모델이 추론 중' : '응답 대기 중') + ` · ${s}초`
+            + (s >= 20 ? '\n26B 모델 첫 응답 준비 중이에요. 잠시만 기다려 주세요.' : '');
+        } catch {}
+      }, 500);
+
+      setBusy(true);
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (turnKey) headers['Authorization'] = `Bearer ${turnKey}`;
+        const historyBeforeTurn = messages.slice(0, -1);
+        const maxDropTurns = Math.max(1, Math.ceil(historyBeforeTurn.length / 2));
+
+        let continueCount = 0, netRetries = 0;
+
+        while (!userAborted) {
+          let result = 'done';
+
+          for (let dropTurns = 0; dropTurns <= maxDropTurns; dropTurns++) {
+            if (userAborted) break;
+            const currentHist = aiMsg.text.trim()
+              ? [...historyBeforeTurn, { role: 'assistant', text: aiMsg.text }, { role: 'user', text: CONTINUE_PROMPT }]
+              : historyBeforeTurn;
+            const payloadMsgs = buildPayload(currentHist, dropTurns);
+            if (dropTurns > 0 && payloadMsgs.length <= 1) {
+              const overflowErr = new Error('대화가 너무 길어요. 새 채팅을 시작해 주세요.');
+              overflowErr.isContextOverflow = true;
+              throw overflowErr;
+            }
+            try {
+              result = await streamSegment(turnUrl, headers, payloadMsgs, aiMsg, turn);
+              break;
+            } catch (attemptErr) {
+              if (userAborted) break;
+              if (!aiMsg.text.trim() && isContextOverflowError(attemptErr) && dropTurns < maxDropTurns) {
+                continue;                                   // 대화가 길면 오래된 것부터 줄여서 다시
+              }
+              if (aiMsg.text.trim()) {
+                result = 'dropped';                         // 글자를 받다가 끊김 → 이어쓰기
+                break;
+              }
+              if (isNetworkError(attemptErr) && netRetries < MAX_NET_RETRIES) {
+                netRetries += 1;                            // 아직 글자가 없을 때만 다시 시도
+                await sleep(1500);
+                dropTurns -= 1;
+                continue;
+              }
+              throw attemptErr;
+            }
+          }
+
+          if (!userAborted && aiMsg.text.trim() && (result === 'cut' || result === 'dropped') && continueCount < MAX_AUTO_CONTINUES) {
+            continueCount += 1;
+            continue;
+          }
+          break;
+        }
+
+        if (userAborted && !aiMsg.text.trim()) throw new Error('중지');   // 글자가 없으면 취소 처리
+
+        if (!aiMsg.text.trim()) aiMsg.text = '(응답 없음)';
+        finishLiveBubble(aiMsg);
+        const saved = await saveChat(ai, aiMsg.text);
+        if (saved && needTitle.has(activeId) && aiMsg.text !== '(응답 없음)') {
+          needTitle.delete(activeId);
+          titleJob = { id: activeId, q: userMsg.text, a: aiMsg.text };
+        }
+      } catch (err) {
+        if (userAborted && aiMsg.text.trim()) {
+          finishLiveBubble(aiMsg);
+          await saveChat(ai, aiMsg.text);
+        } else {
+          live = null;
+          messages.splice(-2, 2);
+          promptInput.value = backupText;
+          pending = backupPending;
+          renderPending();
+          renderChat(false);
+          if (!userAborted) {
+            addBubble(`연결 오류: ${err.message} (현재 URL: ${turnUrl || '없음'})`, 'err');
+          }
+        }
+      } finally {
+        clearInterval(timer);
+        live = null;
+        flushQueued = false;
+        ctl = null;
+        userAborted = false;
+        setBusy(false);
+        if (canUseChat()) promptInput.focus();
+        updateScrollButton();
+      }
+      if (titleJob) generateTitle(titleJob.id, titleJob.q, titleJob.a, turnUrl, turnKey);
+    });
+
+    // ---- 로그인 ----
+    $('open-login-btn').addEventListener('click', () => { location.href = LOGIN_PAGE; });
+    $('open-signup-btn').addEventListener('click', () => { location.href = SIGNUP_PAGE; });
+    $('btn-new-chat').addEventListener('click', newChat);
+    $('btn-logout').addEventListener('click', async () => {
+      await supabase.auth.signOut({ scope: 'local' });   // 이 기기만 로그아웃 (다른 기기는 유지)
+    });
+
+    // 가입(로그인)한 사용자는 모두 사용할 수 있어요. 허용 목록 검사는 하지 않아요.
+    async function checkAllowed(currentUser) {
+      return !!currentUser?.id;
+    }
+
+    async function applySession(session) {
+      const nextUser = session?.user || null;
+      accessToken = session?.access_token || '';
+
+      // 같은 사용자의 토큰 갱신/탭 복귀 이벤트는 무시해요 (대화창을 다시 그리면 답변이 끊겨 보여요)
+      if (sessionInit && (user?.id ?? null) === (nextUser?.id ?? null)) {
+        user = nextUser;
+        return;
+      }
+      sessionInit = true;
+
+      if (busy) { userAborted = true; ctl?.abort(); }   // 다른 계정으로 바뀌면 진행 중인 답변은 멈춰요
+      const seq = ++sessionSeq;
+      user = nextUser;
+      allowed = false;
+      const ok = user ? await checkAllowed(user) : false;
+      if (seq !== sessionSeq) return;                   // 그 사이 더 새로운 로그인 변경이 있었음
+      allowed = ok === true;
+      accessCheckFailed = ok === null;
+
+      activeId = crypto.randomUUID();
+      messages = [];
+      pending = [];
+      needTitle.add(activeId);
+      server = { url: '', api_key: '', online: false };
+
+      renderPending();
+      updateUi();
+      renderChat(true);
+
+      if (canUseChat()) {
+        await loadChats();
+        await pollServer();
+      } else {
+        chats = [];
+        renderHistory();
+      }
+    }
+
+    // '자동 로그인' 끄기를 고른 사용자는 브라우저를 껐다 켜면 로그아웃 (로그인 화면에서 표시해 둔 탭만 예외)
+    try {
+      if (localStorage.getItem(AUTO_LOGIN_KEY) === '0' && sessionStorage.getItem(SESSION_ALIVE_KEY) !== '1') {
+        await supabase.auth.signOut({ scope: 'local' });
+      }
+    } catch {}
+
+    const { data: { session } } = await supabase.auth.getSession();
+    await applySession(session);
+
+    // 콜백 안에서 바로 supabase를 부르면 멈출 수 있어서 setTimeout으로 넘겨요
+    supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setTimeout(() => applySession(nextSession), 0);
+    });
+  </script>
+</body>
+</html>

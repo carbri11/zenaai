@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="images/favicon.png">
+  <title>ZENA AI - 로그인</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117; color: #f3f4f6; display: flex; flex-direction: column; min-height: 100dvh;
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      padding: 12px 20px; border-bottom: 1px solid #1f2430; background: #131620;
+    }
+    .logo { font-size: 20px; font-weight: 700; color: #f3f4f6; text-decoration: none; cursor: pointer; }
+    .logo span { color: #60a5fa; }
+    .btn-back {
+      color: #9ca3af; font-size: 13px; text-decoration: none; padding: 6px 12px;
+      border: 1px solid #2e374d; border-radius: 8px; transition: background .15s, color .15s;
+    }
+    .btn-back:hover { color: #fff; background: #1f2937; }
+    main {
+      flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card {
+      width: 100%; max-width: 400px; background: #161a24; border: 1px solid #232938;
+      border-radius: 16px; padding: 26px 24px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    .desc { margin: 0 0 20px; font-size: 13px; color: #9ca3af; line-height: 1.5; }
+    label { display: block; font-size: 13px; color: #d1d5db; margin-bottom: 6px; font-weight: 500; }
+    input[type="email"],
+    input[type="password"],
+    input.otp-input {
+      width: 100%; padding: 11px 12px; margin-bottom: 14px; border-radius: 10px;
+      border: 1px solid #2e374d; background: #0f1117; color: #fff; font-size: 14px; outline: none;
+      transition: border-color .15s;
+    }
+    input[type="email"]:focus,
+    input[type="password"]:focus,
+    input.otp-input:focus { border-color: #3b82f6; }
+    input.otp-input {
+      font-size: 20px; letter-spacing: 8px; text-align: center; font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .options-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      margin: -2px 0 16px; font-size: 13px; color: #d1d5db;
+    }
+    .remember-row {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .remember-row input[type="checkbox"] {
+      width: 16px; height: 16px; margin: 0; accent-color: #3b82f6; cursor: pointer;
+    }
+    .remember-row label {
+      margin: 0; font-size: 13px; color: #d1d5db; cursor: pointer; user-select: none;
+    }
+    .btn-link-inline {
+      width: auto; padding: 0; background: transparent; color: #60a5fa;
+      font-size: 13px; font-weight: 500; border-radius: 0;
+    }
+    .btn-link-inline:hover:not(:disabled) { text-decoration: underline; background: transparent; }
+
+    button {
+      width: 100%; cursor: pointer; border: none; border-radius: 10px; padding: 11px 14px;
+      font-size: 14px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: background .15s, transform .05s, opacity .15s;
+    }
+    button:active:not(:disabled) { transform: scale(0.99); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: #2563eb;
+    }
+    .btn-secondary {
+      margin-top: 8px;
+      background: #1d2433;
+      color: #e5e7eb;
+      border: 1px solid #2e374d;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #263044;
+    }
+    .divider {
+      display: flex; align-items: center; gap: 10px; margin: 18px 0;
+      color: #6b7280; font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: ""; flex: 1; height: 1px; background: #262d3d;
+    }
+    .social-list { display: flex; flex-direction: column; gap: 10px; }
+
+    /* Google 공식 브랜드 스타일 */
+    .btn-google {
+      background: #ffffff;
+      color: #1f1f1f;
+      border: 1px solid #dadce0;
+    }
+    .btn-google:hover:not(:disabled) {
+      background: #f8f9fa;
+    }
+
+    /* Apple 공식 브랜드 스타일 */
+    .btn-apple {
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #333333;
+    }
+    .btn-apple:hover:not(:disabled) {
+      background: #141414;
+      border-color: #4b5563;
+    }
+
+    .brand-icon {
+      width: 18px; height: 18px; flex-shrink: 0; display: block;
+    }
+
+    .footer-link {
+      margin-top: 18px; text-align: center; font-size: 13px; color: #9ca3af;
+    }
+    .footer-link a { color: #60a5fa; text-decoration: none; font-weight: 600; }
+    .footer-link a:hover { text-decoration: underline; }
+
+    #msg {
+      margin: 14px 0 0; padding: 10px 12px; border-radius: 10px;
+      font-size: 13px; min-height: 18px; color: #f87171; white-space: pre-line;
+      background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.35);
+      display: none;
+    }
+    #msg.show { display: block; }
+    #msg.ok {
+      color: #4ade80; background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.35);
+    }
+    #msg.info {
+      color: #d1d5db; background: rgba(156, 163, 175, 0.12); border-color: rgba(156, 163, 175, 0.25);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="logo" href="index.html">ZENA <span>AI</span></a>
+    <a class="btn-back" href="index.html">← AI 대화창으로 돌아가기</a>
+  </header>
+
+  <main>
+    <div class="card">
+      <h1 id="page-title">로그인</h1>
+      <p id="page-desc" class="desc">ZENA AI 계정에 로그인해 주세요.</p>
+
+      <!-- 일반 로그인 폼 -->
+      <form id="auth-form">
+        <label for="email">이메일</label>
+        <input id="email" type="email" autocomplete="email" placeholder="name@example.com" required />
+
+        <label for="password">비밀번호</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="비밀번호 입력" required />
+
+        <div class="options-row">
+          <div class="remember-row">
+            <input id="auto-login" type="checkbox" checked />
+            <label for="auto-login">자동로그인</label>
+          </div>
+          <button id="btn-forgot-pw" class="btn-link-inline" type="button">비밀번호 찾기</button>
+        </div>
+
+        <button id="btn-login" class="btn-primary" type="submit">로그인</button>
+      </form>
+
+      <!-- 1단계: 비밀번호 찾기(6자리 인증 코드 발송) -->
+      <form id="forgot-form" style="display:none">
+        <label for="reset-email">가입한 이메일</label>
+        <input id="reset-email" type="email" autocomplete="email" placeholder="name@example.com" required />
+
+        <button id="btn-send-reset" class="btn-primary" type="submit">6자리 인증 코드 받기</button>
+        <button id="btn-cancel-forgot" class="btn-secondary" type="button">로그인으로 돌아가기</button>
+      </form>
+
+      <!-- 2단계: 6자리 인증 코드 단독 확인 창 -->
+      <form id="otp-verify-form" style="display:none">
+        <label for="reset-otp">이메일 6자리 인증 코드</label>
+        <input
+          id="reset-otp"
+          class="otp-input"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          placeholder="000000"
+          required
+        />
+
+        <button id="btn-verify-reset-otp" class="btn-primary" type="submit">코드 확인</button>
+        <button id="btn-resend-reset" class="btn-secondary" type="button">코드 재발송</button>
+        <button id="btn-back-to-forgot" class="btn-secondary" type="button">이메일 다시 입력</button>
+      </form>
+
+      <!-- 3단계: 코드 인증 완료 후 새 비밀번호 설정 창 -->
+      <form id="recovery-form" style="display:none">
+        <label for="new-password">새 비밀번호</label>
+        <input id="new-password" type="password" autocomplete="new-password" placeholder="8자 이상 입력" required />
+
+        <label for="new-password-confirm">새 비밀번호 확인</label>
+        <input id="new-password-confirm" type="password" autocomplete="new-password" placeholder="새 비밀번호를 한 번 더 입력" required />
+
+        <button id="btn-update-pw" class="btn-primary" type="submit">비밀번호 변경하기</button>
+        <button id="btn-back-to-login" class="btn-secondary" type="button">로그인으로 돌아가기</button>
+      </form>
+
+      <div id="social-section">
+        <div class="divider">또는 소셜 계정으로 계속하기</div>
+
+        <div class="social-list">
+          <button id="btn-google" class="btn-google" type="button">
+            <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"/>
+            </svg>
+            <span>Google로 계속하기</span>
+          </button>
+
+          <button id="btn-apple" class="btn-apple" type="button">
+            <svg class="brand-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+            </svg>
+            <span>Apple로 계속하기 (추후 지원예정)</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="footer-link">
+        계정이 없으신가요? <a href="signup.html">회원가입</a>
+      </div>
+
+      <p id="msg" class="info"></p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const supabase = createClient(
+      'https://vaavajitxupofylpbkxc.supabase.co',
+      'sb_publishable_htUIneIFWtfmMz7khGtDww_yu2Xlhpe'
+    );
+
+    const MAIN_PAGE = 'index.html';
+    const AUTO_LOGIN_KEY = 'zena_auto_login';
+    const SESSION_ALIVE_KEY = 'zena_session_alive';
+
+    const $ = (id) => document.getElementById(id);
+    const pageTitleEl = $('page-title');
+    const pageDescEl = $('page-desc');
+    const authForm = $('auth-form');
+    const forgotForm = $('forgot-form');
+    const otpVerifyForm = $('otp-verify-form');
+    const recoveryForm = $('recovery-form');
+    const socialSection = $('social-section');
+
+    const emailEl = $('email');
+    const pwEl = $('password');
+    const autoLoginEl = $('auto-login');
+    const forgotBtn = $('btn-forgot-pw');
+    const loginBtn = $('btn-login');
+
+    const resetEmailEl = $('reset-email');
+    const sendResetBtn = $('btn-send-reset');
+    const cancelForgotBtn = $('btn-cancel-forgot');
+
+    const resetOtpEl = $('reset-otp');
+    const verifyResetOtpBtn = $('btn-verify-reset-otp');
+    const resendResetBtn = $('btn-resend-reset');
+    const backToForgotBtn = $('btn-back-to-forgot');
+
+    const newPwEl = $('new-password');
+    const newPwConfirmEl = $('new-password-confirm');
+    const updatePwBtn = $('btn-update-pw');
+    const backToLoginBtn = $('btn-back-to-login');
+
+    const googleBtn = $('btn-google');
+    const appleBtn = $('btn-apple');
+    const msgEl = $('msg');
+
+    let pendingResetEmail = '';
+
+    function formatAuthError(rawMessage = '') {
+      const msg = String(rawMessage || '').trim();
+      if (!msg) return '알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+
+      const secMatch = msg.match(/after\s+(\d+)\s+seconds?/i);
+      if (secMatch) {
+        return `보안상 이유로 ${secMatch[1]}초 후에 다시 요청해 주세요.`;
+      }
+      const minMatch = msg.match(/after\s+(\d+)\s+minutes?/i);
+      if (minMatch) {
+        return `보안상 이유로 ${minMatch[1]}분 후에 다시 요청해 주세요.`;
+      }
+      if (/for security purposes, you can only request this|rate limit|too many requests|over_email_send_rate_limit/i.test(msg)) {
+        return '요청 횟수 제한으로 잠시 후 다시 시도해 주세요.';
+      }
+      if (/new password should be different from the old password/i.test(msg)) {
+        return '새 비밀번호는 기존 비밀번호와 다르게 입력해 주세요.';
+      }
+      if (/password should be at least|password is too short/i.test(msg)) {
+        return '비밀번호는 6자 이상 입력해 주세요.';
+      }
+      if (/weak password|password is known to be weak|easy to guess/i.test(msg)) {
+        return '보안에 취약한 비밀번호입니다. 다른 조합으로 입력해 주세요.';
+      }
+      if (/invalid login credentials/i.test(msg)) {
+        return '이메일 또는 비밀번호가 올바르지 않습니다.';
+      }
+      if (/email not confirmed/i.test(msg)) {
+        return '이메일 인증이 완료되지 않았습니다. 인증 코드를 먼저 확인해 주세요.';
+      }
+      if (/token has expired|otp expired|expired/i.test(msg)) {
+        return '인증 코드가 만료되었습니다. 코드를 다시 발송해 주세요.';
+      }
+      if (/invalid otp|token is invalid|otp_disabled/i.test(msg)) {
+        return '인증 코드가 올바르지 않습니다. 다시 확인해 주세요.';
+      }
+      if (/user already registered|already been registered|email address is already/i.test(msg)) {
+        return '이미 가입된 이메일입니다. 로그인해 주세요.';
+      }
+      if (/user not found/i.test(msg)) {
+        return '가입된 계정을 찾을 수 없습니다.';
+      }
+      if (/signup is disabled/i.test(msg)) {
+        return '현재 신규 회원가입이 제한되어 있습니다.';
+      }
+      if (/auth session missing|session not found|jwt expired/i.test(msg)) {
+        return '인증 세션이 만료되었습니다. 처음부터 다시 진행해 주세요.';
+      }
+      if (/failed to fetch|networkerror|network request failed/i.test(msg)) {
+        return '네트워크 연결을 확인한 뒤 다시 시도해 주세요.';
+      }
+      return msg;
+    }
+
+    function getMainRedirectUrl() {
+      const url = new URL(location.href);
+      const dir = url.pathname.endsWith('/')
+        ? url.pathname
+        : url.pathname.replace(/[^/]*$/, '');
+      return `${url.origin}${dir}${MAIN_PAGE}`;
+    }
+
+    function setMsg(text, type = 'info') {
+      if (!text) {
+        msgEl.textContent = '';
+        msgEl.className = 'info';
+        return;
+      }
+      msgEl.textContent = text;
+      msgEl.className = `${type} show`;
+    }
+
+    function setLoading(v) {
+      loginBtn.disabled = v;
+      forgotBtn.disabled = v;
+      googleBtn.disabled = v;
+      appleBtn.disabled = v;
+      emailEl.disabled = v;
+      pwEl.disabled = v;
+      autoLoginEl.disabled = v;
+
+      resetEmailEl.disabled = v;
+      sendResetBtn.disabled = v;
+      cancelForgotBtn.disabled = v;
+
+      resetOtpEl.disabled = v;
+      verifyResetOtpBtn.disabled = v;
+      resendResetBtn.disabled = v;
+      backToForgotBtn.disabled = v;
+
+      newPwEl.disabled = v;
+      newPwConfirmEl.disabled = v;
+      updatePwBtn.disabled = v;
+      backToLoginBtn.disabled = v;
+    }
+
+    function showMode(mode) {
+      setMsg('', 'info');
+      authForm.style.display = mode === 'login' ? 'block' : 'none';
+      forgotForm.style.display = mode === 'forgot' ? 'block' : 'none';
+      otpVerifyForm.style.display = mode === 'otp' ? 'block' : 'none';
+      recoveryForm.style.display = mode === 'recovery' ? 'block' : 'none';
+      socialSection.style.display = mode === 'login' ? 'block' : 'none';
+
+      if (mode === 'login') {
+        pageTitleEl.textContent = '로그인';
+        pageDescEl.textContent = 'ZENA AI 계정에 로그인해 주세요.';
+      } else if (mode === 'forgot') {
+        pageTitleEl.textContent = '비밀번호 찾기';
+        pageDescEl.textContent = '가입한 이메일을 입력하면 6자리 인증 코드를 보내드립니다.';
+        resetEmailEl.value = emailEl.value.trim();
+        resetEmailEl.focus();
+      } else if (mode === 'otp') {
+        pageTitleEl.textContent = '인증 코드 확인';
+        pageDescEl.textContent = `${pendingResetEmail} 로 발송된 6자리 인증 코드를 입력해 주세요.`;
+        resetOtpEl.value = '';
+        resetOtpEl.focus();
+      } else if (mode === 'recovery') {
+        pageTitleEl.textContent = '새 비밀번호 설정';
+        pageDescEl.textContent = '코드 인증이 완료되었습니다. 새 비밀번호를 입력해 주세요.';
+        newPwEl.value = '';
+        newPwConfirmEl.value = '';
+        newPwEl.focus();
+      }
+    }
+
+    function applyAutoLoginPreference(enabled) {
+      if (enabled) {
+        localStorage.setItem(AUTO_LOGIN_KEY, '1');
+        sessionStorage.removeItem(SESSION_ALIVE_KEY);
+      } else {
+        localStorage.setItem(AUTO_LOGIN_KEY, '0');
+        sessionStorage.setItem(SESSION_ALIVE_KEY, '1');
+      }
+    }
+
+    const savedAutoLogin = localStorage.getItem(AUTO_LOGIN_KEY);
+    if (savedAutoLogin !== null) {
+      autoLoginEl.checked = savedAutoLogin === '1';
+    }
+
+    autoLoginEl.addEventListener('change', () => {
+      applyAutoLoginPreference(autoLoginEl.checked);
+    });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const isAuto = localStorage.getItem(AUTO_LOGIN_KEY) !== '0';
+      const isAliveInTab = sessionStorage.getItem(SESSION_ALIVE_KEY) === '1';
+      if (!isAuto && !isAliveInTab) {
+        await supabase.auth.signOut({ scope: 'local' });   // 이 기기만 (전체 기기 로그아웃 방지)
+      } else {
+        location.replace(MAIN_PAGE);
+      }
+    }
+
+    forgotBtn.addEventListener('click', () => showMode('forgot'));
+    cancelForgotBtn.addEventListener('click', () => showMode('login'));
+    backToForgotBtn.addEventListener('click', () => showMode('forgot'));
+    backToLoginBtn.addEventListener('click', () => showMode('login'));
+
+    resetOtpEl.addEventListener('input', () => {
+      resetOtpEl.value = resetOtpEl.value.replace(/\D/g, '').slice(0, 6);
+    });
+
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = emailEl.value.trim();
+      const password = pwEl.value;
+      if (!email) {
+        setMsg('이메일을 입력해 주세요.', 'err');
+        return;
+      }
+      if (!password) {
+        setMsg('비밀번호를 입력해 주세요.', 'err');
+        return;
+      }
+
+      setLoading(true);
+      setMsg('로그인 중...', 'info');
+      try {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          setMsg('로그인 실패: ' + formatAuthError(error.message), 'err');
+          setLoading(false);
+          return;
+        }
+        applyAutoLoginPreference(autoLoginEl.checked);
+        setMsg('로그인 성공! 이동 중...', 'ok');
+        location.replace(MAIN_PAGE);
+      } catch (err) {
+        setMsg('요청 오류: ' + formatAuthError(err.message), 'err');
+        setLoading(false);
+      }
+    });
+
+    async function sendResetOtp(targetEmail) {
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail);
+      if (error) {
+        throw new Error('코드 발송 실패: ' + formatAuthError(error.message));
+      }
+    }
+
+    forgotForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const targetEmail = resetEmailEl.value.trim();
+      if (!targetEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+        setMsg('올바른 이메일 주소를 입력해 주세요.', 'err');
+        resetEmailEl.focus();
+        return;
+      }
+
+      setLoading(true);
+      setMsg('6자리 인증 코드를 발송하는 중...', 'info');
+      try {
+        await sendResetOtp(targetEmail);
+        pendingResetEmail = targetEmail;
+        setLoading(false);
+        showMode('otp');
+        setMsg('이메일로 6자리 인증 코드를 발송했습니다. 코드를 입력해 먼저 확인해 주세요.', 'ok');
+      } catch (err) {
+        setMsg(err.message, 'err');
+        setLoading(false);
+      }
+    });
+
+    resendResetBtn.addEventListener('click', async () => {
+      if (!pendingResetEmail) return;
+      setLoading(true);
+      setMsg('6자리 인증 코드를 다시 발송하는 중...', 'info');
+      try {
+        await sendResetOtp(pendingResetEmail);
+        setMsg('인증 코드를 다시 보냈습니다. 메일함을 확인해 주세요.', 'ok');
+      } catch (err) {
+        setMsg(err.message, 'err');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    otpVerifyForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const token = resetOtpEl.value.trim();
+      if (!/^\d{6}$/.test(token)) {
+        setMsg('6자리 숫자 인증 코드를 입력해 주세요.', 'err');
+        resetOtpEl.focus();
+        return;
+      }
+
+      setLoading(true);
+      setMsg('인증 코드를 확인하는 중...', 'info');
+      try {
+        const { error: otpError } = await supabase.auth.verifyOtp({
+          email: pendingResetEmail,
+          token,
+          type: 'recovery',
+        });
+        if (otpError) {
+          setMsg('인증 코드 확인 실패: ' + formatAuthError(otpError.message), 'err');
+          setLoading(false);
+          return;
+        }
+
+        setLoading(false);
+        showMode('recovery');
+        setMsg('인증 코드가 확인되었습니다. 새 비밀번호를 입력해 주세요.', 'ok');
+      } catch (err) {
+        setMsg('인증 요청 오류: ' + formatAuthError(err.message), 'err');
+        setLoading(false);
+      }
+    });
+
+    recoveryForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nextPassword = newPwEl.value;
+      const nextPasswordConfirm = newPwConfirmEl.value;
+
+      if (nextPassword.length < 8) {
+        setMsg('새 비밀번호는 8자 이상 입력해 주세요.', 'err');
+        newPwEl.focus();
+        return;
+      }
+      if (nextPassword !== nextPasswordConfirm) {
+        setMsg('새 비밀번호와 새 비밀번호 확인이 일치하지 않습니다.', 'err');
+        newPwConfirmEl.focus();
+        return;
+      }
+
+      setLoading(true);
+      setMsg('비밀번호를 변경하는 중...', 'info');
+      try {
+        const { error: pwError } = await supabase.auth.updateUser({ password: nextPassword });
+        if (pwError) {
+          setMsg('비밀번호 변경 실패: ' + formatAuthError(pwError.message), 'err');
+          setLoading(false);
+          return;
+        }
+
+        setMsg('비밀번호가 변경되었습니다! AI 대화창으로 이동합니다...', 'ok');
+        setTimeout(() => {
+          location.replace(MAIN_PAGE);
+        }, 1200);
+      } catch (err) {
+        setMsg('요청 오류: ' + formatAuthError(err.message), 'err');
+        setLoading(false);
+      }
+    });
+
+    async function signInWithProvider(provider, label) {
+      setLoading(true);
+      setMsg(`${label} 로그인 페이지로 이동 중...`, 'info');
+      applyAutoLoginPreference(autoLoginEl.checked);
+      try {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: getMainRedirectUrl(),
+          },
+        });
+        if (error) {
+          setMsg(`${label} 로그인 오류: ${formatAuthError(error.message)}`, 'err');
+          setLoading(false);
+        }
+      } catch (err) {
+        setMsg(`${label} 로그인 요청 실패: ${formatAuthError(err.message)}`, 'err');
+        setLoading(false);
+      }
+    }
+
+    googleBtn.addEventListener('click', () => signInWithProvider('google', 'Google'));
+    appleBtn.addEventListener('click', () => signInWithProvider('apple', 'Apple'));
+  </script>
+</body>
+</html>
