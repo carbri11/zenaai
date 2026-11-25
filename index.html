@@ -1161,11 +1161,7 @@
       return !!currentUser?.id;
     }
 
-    async function applySession(session)
-    if (window.location.hash === '#') {
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-    }
-    {
+    async function applySession(session) {
       const nextUser = session?.user || null;
       accessToken = session?.access_token || '';
       
