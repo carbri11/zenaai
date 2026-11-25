@@ -267,7 +267,13 @@
 
     const supabase = createClient(
       'https://vaavajitxupofylpbkxc.supabase.co',
-      'sb_publishable_htUIneIFWtfmMz7khGtDww_yu2Xlhpe'
+      'sb_publishable_htUIneIFWtfmMz7khGtDww_yu2Xlhpe',
+      {
+        auth: {
+          flowType: 'pkce',
+          detectSessionInUrl: true,
+        },
+      }
     );
 
     // ---- 설정 ----
@@ -1164,7 +1170,6 @@
     async function applySession(session) {
       const nextUser = session?.user || null;
       accessToken = session?.access_token || '';
-      
 
       // 같은 사용자의 토큰 갱신/탭 복귀 이벤트는 무시해요 (대화창을 다시 그리면 답변이 끊겨 보여요)
       if (sessionInit && (user?.id ?? null) === (nextUser?.id ?? null)) {
@@ -1218,3 +1223,9 @@
   </script>
 </body>
 </html>
+```[cite: 4]
+
+### 적용 시 참고사항
+
+* `login.html`(`login/`)에도 구글 로그인을 처리하는 `createClient`가 있다면 동일하게 `auth: { flowType: 'pkce', detectSessionInUrl: true }` 옵션을 맞춰주는 것이 좋습니다[cite: 4].
+* 기존에 이미 Implicit 방식으로 로그인해 저장된 세션이 남아 있다면, 로그아웃 후 다시 로그인했을 때 PKCE 흐름이 적용됩니다[cite: 4].
