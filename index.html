@@ -1212,7 +1212,8 @@
     function cleanUrlHash() {
       try {
         const h = location.hash;
-        if (h === '#' || /access_token=|refresh_token=|provider_token=/.test(h)) {
+        // 주소 끝이 빈 '#'이면 location.hash는 ''로 나오므로 href로 확인해요
+        if (location.href.endsWith('#') || /access_token=|refresh_token=|provider_token=/.test(h)) {
           history.replaceState(null, '', location.pathname + location.search);
         }
       } catch {}
