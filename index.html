@@ -290,6 +290,7 @@
     const SEND_JWT = false;
     const AUTO_LOGIN_KEY = 'zena_auto_login';
     const SESSION_ALIVE_KEY = 'zena_session_alive';
+    const FROM_AUTH_KEY = 'zena_from_auth';   // 로그인/회원가입 페이지가 남기는 표시
     const MAX_AUTO_CONTINUES = 6;   // 길이 제한/연결 끊김 때 자동으로 이어 쓰는 최대 횟수
     const MAX_NET_RETRIES = 2;      // 첫 글자 전에 네트워크 오류가 나면 다시 시도하는 횟수
     const STALL_MS = 45000;         // 글자가 오다가 이 시간 동안 아무것도 안 오면 끊긴 것으로 보고 이어쓰기
@@ -1220,10 +1221,32 @@
     }
 
     // 로그인 처리가 끝난 뒤에 '#'가 늦게 붙는 경우가 있어서, 몇 번 더 확인해서 지워요
-    [0, 200, 600, 1500, 3000].forEach((ms) => setTimeout(cleanUrlHash, ms));
+    // 15초 동안 0.1초마다 감시하고, 주소가 바뀌거나 페이지가 다시 보일 때도 지워요
+    {
+      const hashTimer = setInterval(cleanUrlHash, 100);
+      setTimeout(() => clearInterval(hashTimer), 15000);
+      window.addEventListener('hashchange', cleanUrlHash);
+      window.addEventListener('pageshow', cleanUrlHash);
+      window.addEventListener('load', cleanUrlHash);
+    }
 
     const { data: { session } } = await supabase.auth.getSession();
     cleanUrlHash();
+
+    // 로그인/회원가입 페이지를 거쳐 돌아왔으면 한 번 새로고침해요 (로그인 정보는 위에서 이미 저장됨)
+    function reloadIfFromAuth() {
+      try {
+        if (sessionStorage.getItem(FROM_AUTH_KEY) === '1') {
+          sessionStorage.removeItem(FROM_AUTH_KEY);
+          location.replace(location.pathname + location.search);
+          return true;
+        }
+      } catch {}
+      return false;
+    }
+    // 뒤로가기로 캐시된 화면이 복원될 때도 같은 처리
+    window.addEventListener('pageshow', (e) => { if (e.persisted) reloadIfFromAuth(); });
+    if (reloadIfFromAuth()) await new Promise(() => {});   // 새로고침되는 동안 아래 코드는 실행하지 않아요
     await applySession(session);
 
     // 콜백 안에서 바로 supabase를 부르면 멈출 수 있어서 setTimeout으로 넘겨요

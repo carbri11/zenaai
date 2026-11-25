@@ -244,6 +244,9 @@
       'sb_publishable_htUIneIFWtfmMz7khGtDww_yu2Xlhpe'
     );
 
+    // 이 페이지를 거쳐 메인으로 돌아가면 메인 페이지가 한 번 새로고침돼요
+    try { sessionStorage.setItem('zena_from_auth', '1'); } catch {}
+
     const MAIN_PAGE = '..';
     const LOGIN_PAGE = '../login/';
     const AUTO_LOGIN_KEY = 'zena_auto_login';
