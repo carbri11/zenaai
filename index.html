@@ -1208,12 +1208,23 @@
       }
     } catch {}
 
+    // 구글 로그인 뒤 주소 끝에 남는 '#'(또는 토큰이 담긴 #access_token=...)을 지워요
+    function cleanUrlHash() {
+      try {
+        const h = location.hash;
+        if (h === '#' || /access_token=|refresh_token=|provider_token=/.test(h)) {
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+      } catch {}
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
+    cleanUrlHash();
     await applySession(session);
 
     // 콜백 안에서 바로 supabase를 부르면 멈출 수 있어서 setTimeout으로 넘겨요
     supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setTimeout(() => applySession(nextSession), 0);
+      setTimeout(() => { cleanUrlHash(); applySession(nextSession); }, 0);
     });
   </script>
 </body>
