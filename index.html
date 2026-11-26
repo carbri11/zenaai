@@ -61,6 +61,9 @@
     .server-status { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #1f2430; color: #9ca3af; }
     .server-status.online { background: rgba(34,197,94,.15); color: #4ade80; }
     .server-status.offline { background: rgba(248,113,113,.15); color: #f87171; }
+    .server-status.booting { background: rgba(251,191,36,.15); color: #fbbf24; }
+    .btn-start { background: #f59e0b; color: #111827; padding: 5px 12px; font-size: 12px; }
+    .btn-start:hover:not(:disabled) { background: #d97706; }
     .user-badge { font-size: 13px; color: #9ca3af; }
     button { cursor: pointer; border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px; font-weight: 600; }
     button:disabled { opacity: .55; cursor: not-allowed; }
@@ -220,6 +223,7 @@
     <div class="header-left">
       <div class="logo">ZENA <span>AI</span></div>
       <span id="server-status" class="server-status">서버 확인 중...</span>
+      <button id="btn-start-server" class="btn-start" type="button" style="display:none">서버 켜기</button>
     </div>
 
     <div id="guest-nav" class="nav-actions">
@@ -276,7 +280,7 @@
     const SIGNUP_PAGE = 'signup/';
     const SYSTEM_MSG = { role: 'system', content: '당신은 친절하고 정확한 AI 어시스턴트 ZENA AI입니다. 한국어로 답하세요.' };
     const CONTINUE_PROMPT = '앞의 답변을 끊긴 부분부터 바로 이어서 작성해 줘. 중복은 피하고 이어서만 써.';
-    // ※ CTX_TOKENS는 코랩 코드의 CTX 값과 같아야 해요. 한글은 토큰당 약 1.5자로 넉넉히 잡았어요.
+    // ※ CTX_TOKENS는 서버(run_server.py)의 CTX 값과 같아야 해요. 한글은 토큰당 약 1.5자로 넉넉히 잡았어요.
     const CTX_TOKENS = 4096;
     const MAX_OUT = 1024;
     const CHARS_PER_TOKEN = 1.5;
@@ -303,11 +307,13 @@
     const chatBox = $('chat-box'), historyListEl = $('history-list'), attachRow = $('attach-row');
     const promptInput = $('prompt-input'), sendBtn = $('send-btn'), fileInput = $('file-input');
     const serverStatus = $('server-status'), promptForm = $('prompt-form');
+    const startBtn = $('btn-start-server');
     const scrollBottomBtn = $('scroll-bottom-btn');
 
     // ---- 상태 ----
     let user = null, allowed = true, accessCheckFailed = false, accessToken = '', accessErrorMsg = '';
     let server = { url: '', api_key: '', online: false };
+    let vm = { status: 'UNKNOWN', canStart: false, startedAt: 0 };   // GCP VM 상태
     let chats = [];
     let activeId = crypto.randomUUID(), messages = [], pending = [];
     let busy = false, ctl = null, userAborted = false;
@@ -427,12 +433,26 @@
 
     function setStatus(text, cls) { serverStatus.textContent = text; serverStatus.className = 'server-status ' + (cls || ''); }
 
+    function vmBooting() {
+      return ['PROVISIONING', 'STAGING', 'RUNNING'].includes(vm.status) || (Date.now() - vm.startedAt < 30000);
+    }
+
+    function updateStartBtn() {
+      const show = canUseChat() && !server.online && vm.canStart && vm.status === 'TERMINATED'
+        && (Date.now() - vm.startedAt >= 30000);
+      startBtn.style.display = show ? '' : 'none';
+      startBtn.disabled = false;
+    }
+
     function refreshStatusLabel() {
+      updateStartBtn();
       if (!isLoggedIn()) return setStatus('로그인 필요', 'offline');
       if (accessCheckFailed) return setStatus('권한 확인 실패', 'offline');
       if (!allowed) return setStatus('접근 권한 없음', 'offline');
       if (server.online) setStatus('AI 서버 온라인', 'online');
-      else setStatus('AI 서버 오프라인', 'offline');
+      else if (vmBooting()) setStatus('서버 켜는 중… (약 5분)', 'booting');
+      else if (vm.status === 'STOPPING') setStatus('서버 종료 중', 'offline');
+      else setStatus('AI 서버 꺼짐', 'offline');
     }
 
     function updateUi() {
@@ -452,7 +472,30 @@
     }
 
     // ---- 서버 주소 ----
+    async function pollVm() {
+      if (!canUseChat() || !accessToken) return;
+      try {
+        const res = await fetch(`${WORKER_URL}/api/vm/status`, { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!res.ok) { vm.status = 'UNKNOWN'; vm.canStart = false; return; }
+        const d = await res.json();
+        vm.status = d.status || 'UNKNOWN';
+        vm.canStart = !!d.canStart;
+        if (vm.status !== 'TERMINATED') vm.startedAt = 0;
+      } catch {
+        vm.status = 'UNKNOWN'; vm.canStart = false;
+      }
+    }
+
+    // 서버가 온라인이 아닐 때만 VM 상태를 추가로 확인해요
     async function pollServer() {
+      await pollServerInner();
+      if (!server.online && canUseChat()) {
+        await pollVm();
+        refreshStatusLabel();
+      }
+    }
+
+    async function pollServerInner() {
       if (!canUseChat()) return;
       try {
         const res = await fetch(`${WORKER_URL}/api/server`, { headers: authHeaders() });
@@ -1003,7 +1046,11 @@
 
       await pollServer();
       if (!server.online || !server.url) {
-        addBubble('AI 서버가 꺼져 있어요. 코랩을 실행해 주세요.', 'err');
+        addBubble(
+          vmBooting() ? '서버가 켜지는 중이에요. 위 상태가 "AI 서버 온라인"으로 바뀌면 다시 보내 주세요. (약 5분)'
+          : vm.canStart ? '서버가 꺼져 있어요. 위의 "서버 켜기" 버튼을 눌러 주세요.'
+          : '서버가 꺼져 있어요. 서버를 켤 수 있는 사용자에게 요청해 주세요.',
+          'err');
         return;
       }
       // 이번 답변 동안은 주소를 고정해서, 중간에 폴링이 바꿔도 영향이 없게 해요
@@ -1056,7 +1103,7 @@
           if (turn.gotToken || !live) return;
           const s = Math.floor((Date.now() - startT) / 1000);
           live.txt.textContent = (turn.thinking ? '모델이 추론 중' : '응답 대기 중') + ` · ${s}초`
-            + (s >= 20 ? '\n26B 모델 첫 응답 준비 중이에요. 잠시만 기다려 주세요.' : '');
+            + (s >= 20 ? '\n모델 첫 응답 준비 중이에요. 잠시만 기다려 주세요.' : '');
         } catch {}
       }, 500);
 
@@ -1153,6 +1200,27 @@
     $('open-login-btn').addEventListener('click', () => { location.href = LOGIN_PAGE; });
     $('open-signup-btn').addEventListener('click', () => { location.href = SIGNUP_PAGE; });
     $('btn-new-chat').addEventListener('click', newChat);
+    startBtn.addEventListener('click', async () => {
+      if (!accessToken) return;
+      startBtn.disabled = true;
+      try {
+        const res = await fetch(`${WORKER_URL}/api/vm/start`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          addBubble(d.error || `서버를 켜지 못했어요 (${res.status})`, 'err');
+        } else {
+          vm.status = d.status || 'PROVISIONING';
+          vm.startedAt = Date.now();
+          addBubble('서버를 켜고 있어요. 모델을 올리는 데 약 5분 걸려요. 위 상태가 "AI 서버 온라인"으로 바뀌면 대화할 수 있어요.', 'ai');
+        }
+      } catch (err) {
+        addBubble('서버를 켜지 못했어요: ' + err.message, 'err');
+      }
+      refreshStatusLabel();
+    });
     $('btn-logout').addEventListener('click', async () => {
       await supabase.auth.signOut({ scope: 'local' });   // 이 기기만 로그아웃 (다른 기기는 유지)
     });
@@ -1188,6 +1256,7 @@
       pending = [];
       needTitle.add(activeId);
       server = { url: '', api_key: '', online: false };
+      vm = { status: 'UNKNOWN', canStart: false, startedAt: 0 };
 
       renderPending();
       updateUi();
