@@ -1691,6 +1691,7 @@
     }
     applySearchMode();
     $('menu-search').addEventListener('click', () => {
+      closePlusMenu();
       setSearchMode(searchMode === 'on' ? 'auto' : 'on');
       showToast(searchMode === 'auto' ? '🌐 웹 검색: 자동 — 필요하다고 판단될 때만 검색해요.'
         : '🌐 웹 검색: 항상 켜짐 — 모든 질문에서 검색해요.');
