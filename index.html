@@ -64,6 +64,15 @@
     .server-status.booting { background: rgba(251,191,36,.15); color: #fbbf24; }
     .btn-start { background: #f59e0b; color: #111827; padding: 5px 12px; font-size: 12px; }
     .btn-start:hover:not(:disabled) { background: #d97706; }
+    .btn-attach.on { background: #1d4ed8; color: #fff; box-shadow: inset 0 0 0 1px #60a5fa; }
+    .sources { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.12); font-size: 12px; white-space: normal; }
+    .sources-title { color: #9ca3af; margin-bottom: 4px; }
+    .msg .sources a { display: block; color: #93c5fd; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer !important; }
+    .msg .sources a:hover { text-decoration: underline; }
+    .toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 10000; max-width: 90vw;
+      background: #232b3d; color: #f3f4f6; border: 1px solid #3a4661; border-radius: 10px; padding: 8px 14px; font-size: 13px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .toast.show { opacity: 1; }
     .user-badge { font-size: 13px; color: #9ca3af; }
     button { cursor: pointer; border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px; font-weight: 600; }
     button:disabled { opacity: .55; cursor: not-allowed; }
@@ -250,6 +259,7 @@
       <div id="attach-row" class="attach-row"></div>
       <form id="prompt-form" class="prompt-bar">
         <button id="attach-btn" type="button" class="btn-attach" title="파일/이미지 첨부">📎</button>
+        <button id="search-btn" type="button" class="btn-attach" title="웹 검색 꺼짐 (눌러서 켜기)" aria-pressed="false">🌐</button>
         <input id="file-input" type="file" multiple hidden
                accept="image/*,.txt,.md,.py,.js,.ts,.csv,.json,.log,.html,.css,.xml,.yaml,.yml,.ini,.sh,.java,.c,.cpp,.cs,.sql" />
         <input id="prompt-input" type="text" placeholder="메시지를 입력하세요..." autocomplete="off" />
@@ -278,16 +288,20 @@
     const WORKER_URL = 'https://zena-chat-memory.zena-ai.workers.dev';
     const LOGIN_PAGE = 'login/';
     const SIGNUP_PAGE = 'signup/';
-    const SYSTEM_MSG = { role: 'system', content: '당신은 친절하고 정확한 AI 어시스턴트 ZENA AI입니다. 한국어로 답하세요.' };
+    const SYSTEM_MSG = { role: 'system', content: '당신은 친절하고 정확한 AI 어시스턴트 ZENA AI입니다. 한국어로 답하세요. 확실하지 않은 사실은 아는 척하지 말고 모른다고 말하세요.' };
     const CONTINUE_PROMPT = '앞의 답변을 끊긴 부분부터 바로 이어서 작성해 줘. 중복은 피하고 이어서만 써.';
-    // ※ CTX_TOKENS는 서버(run_server.py)의 CTX 값과 같아야 해요. 한글은 토큰당 약 1.5자로 넉넉히 잡았어요.
-    const CTX_TOKENS = 4096;
+    // 서버(llama-server)의 실제 컨텍스트 길이는 /props 로 읽어서 맞춰요. 못 읽으면 가장 작은 값(4096)을 써요.
+    // 한글은 토큰을 많이 쓰기 때문에 글자당 1.2토큰으로 넉넉히(보수적으로) 계산해요.
+    const CTX_FALLBACK = 4096;
     const MAX_OUT = 1024;
-    const CHARS_PER_TOKEN = 1.5;
-    const INPUT_CHARS = Math.floor((CTX_TOKENS - MAX_OUT - 500) * CHARS_PER_TOKEN);  // 시스템/이미지/여유분 500토큰 제외
-    const MAX_CHARS = INPUT_CHARS;
-    const FILE_CHARS = Math.floor(INPUT_CHARS * 0.6);
-    const TOTAL_FILE_CHARS = Math.floor(INPUT_CHARS * 0.7);
+    const SAFETY_TOKENS = 400;      // 계산 오차 여유분
+    const SUMMARIZE_AT = 0.55;      // 입력 예산의 이 비율을 넘으면 앞부분을 요약해서 저장
+    const KEEP_TAIL = 2;            // 요약할 때 마지막 한 턴(질문+답)은 그대로 둬요
+    const IMG_TOKENS = 700;         // 이미지 1장이 쓰는 토큰 (넉넉히)
+    let ctxTokens = CTX_FALLBACK;
+    const inputBudget = () => Math.max(1000, ctxTokens - MAX_OUT - SAFETY_TOKENS);
+    const fileChars = () => Math.floor(inputBudget() * 0.35 / 1.2);
+    const totalFileChars = () => Math.floor(inputBudget() * 0.5 / 1.2);
     const MAX_IMAGES = 2;
     const FILE_READ_LIMIT = 300000;   // 큰 파일은 앞부분만 읽어서 브라우저가 멈추지 않게
     // Worker가 Authorization 헤더를 허용/검증하도록 고친 뒤에 true로 바꾸세요 (설명 참고)
@@ -308,12 +322,18 @@
     const promptInput = $('prompt-input'), sendBtn = $('send-btn'), fileInput = $('file-input');
     const serverStatus = $('server-status'), promptForm = $('prompt-form');
     const startBtn = $('btn-start-server');
+    const searchBtn = $('search-btn');
     const scrollBottomBtn = $('scroll-bottom-btn');
 
     // ---- 상태 ----
     let user = null, allowed = true, accessCheckFailed = false, accessToken = '', accessErrorMsg = '';
     let server = { url: '', api_key: '', online: false };
     let vm = { status: 'UNKNOWN', canStart: false, startedAt: 0 };   // GCP VM 상태
+    // 대화 기억: 앞부분은 요약해서 Cloudflare(D1)에 저장하고, 요약에 포함된 메시지 수(covered)를 같이 기억해요
+    let sessionSummary = '', covered = 0, baseOffset = 0;   // baseOffset: 불러온 메시지 앞에 있던 메시지 수
+    let compactJob = null, ctxFor = '';
+    let searchOn = false;
+    try { searchOn = localStorage.getItem('zena_search') === '1'; } catch {}
     let chats = [];
     let activeId = crypto.randomUUID(), messages = [], pending = [];
     let busy = false, ctl = null, userAborted = false;
@@ -466,6 +486,7 @@
       promptInput.placeholder = loggedIn ? '메시지를 입력하세요...' : '로그인 후 채팅을 이용할 수 있어요.';
       sendBtn.disabled = !usable;
       $('attach-btn').disabled = !usable || busy;
+      searchBtn.disabled = !usable;
       $('btn-new-chat').disabled = !usable;
       promptForm.classList.toggle('locked', !usable);
       refreshStatusLabel();
@@ -583,7 +604,14 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         activeId = id;
-        messages = (data.recentMessages || []).map(restoreMessage);
+        const recent = data.recentMessages || [];
+        messages = recent.map(restoreMessage);
+        // 저장된 요약과 '요약에 포함된 메시지 수'를 불러와요
+        sessionSummary = data.session?.summary || '';
+        let st = {};
+        try { st = JSON.parse(data.session?.state_json || '{}'); } catch {}
+        covered = Number(st.covered) || 0;
+        baseOffset = Math.max(0, (Number(data.total) || recent.length) - recent.length);
         pending = [];
         followBottom = true;
         renderPending(); renderHistory(); renderChat(true);
@@ -607,6 +635,7 @@
     function newChat() {
       if (busy || !canUseChat()) return;
       activeId = crypto.randomUUID(); messages = []; pending = [];
+      sessionSummary = ''; covered = 0; baseOffset = 0;
       needTitle.add(activeId);
       followBottom = true;
       renderPending(); renderHistory(); renderChat(true); promptInput.focus();
@@ -742,7 +771,23 @@
         });
         div.appendChild(im);
       });
+      if (m.sources?.length) renderSources(div, m.sources);
       return div;
+    }
+
+    function renderSources(bubble, sources) {
+      if (!sources?.length) return;
+      const box = document.createElement('div'); box.className = 'sources';
+      const t = document.createElement('div'); t.className = 'sources-title'; t.textContent = '🔎 출처';
+      box.appendChild(t);
+      sources.forEach((src, i) => {
+        if (!/^https?:\/\//i.test(src.url || '')) return;
+        const a = document.createElement('a');
+        a.href = src.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = `[${i + 1}] ${src.title || src.url}`;
+        box.appendChild(a);
+      });
+      bubble.appendChild(box);
     }
 
     function addBubble(text, cls) {
@@ -890,33 +935,204 @@
     });
 
     // ---- AI 요청 ----
+    // ---- 토큰 추정 (정확하지 않아도 되도록 보수적으로) ----
+    function estTokens(text) {
+      const str = String(text || '');
+      let hangul = 0;
+      for (const ch of str) {
+        const c = ch.codePointAt(0);
+        if ((c >= 0xAC00 && c <= 0xD7A3) || (c >= 0x3131 && c <= 0x318E)) hangul++;
+      }
+      return Math.ceil(hangul * 1.2 + (str.length - hangul) * 0.4) + 6;
+    }
+
+    function msgTokens(m) {
+      return estTokens((m.ai ?? m.text ?? '') + (m.ctxExtra || ''));
+    }
+
+    function systemMsg() {
+      const extra = sessionSummary
+        ? `\n\n[이전 대화 요약 - 오래된 대화는 이 요약으로 기억하세요]\n${sessionSummary}`
+        : '';
+      // system 메시지는 하나만 둬야 해서 요약도 같은 메시지에 합쳐요
+      return { role: 'system', content: SYSTEM_MSG.content + extra };
+    }
+
+    // 요약에 이미 들어간 앞부분 메시지는 빼고 보내요
+    function liveHistory(hist) {
+      return hist.slice(Math.max(0, covered - baseOffset));
+    }
+
+    function imageTokens(list) {
+      let idx = -1;
+      list.forEach((m, i) => { if (m.images?.length) idx = i; });
+      return idx >= 0 ? list[idx].images.length * IMG_TOKENS : 0;
+    }
+
     function toApi(m, withImages = true) {
       if (m.role === 'assistant') return { role: 'assistant', content: m.text };
+      const text = (m.ai ?? m.text ?? '') + (m.ctxExtra || '');   // ctxExtra: 이번 질문에만 붙는 검색 결과
       if (withImages && m.images?.length) {
-        return { role: 'user', content: [{ type: 'text', text: m.ai }, ...m.images.map((u) => ({ type: 'image_url', image_url: { url: u } }))] };
+        return { role: 'user', content: [{ type: 'text', text }, ...m.images.map((u) => ({ type: 'image_url', image_url: { url: u } }))] };
       }
-      return { role: 'user', content: m.ai ?? m.text };
+      return { role: 'user', content: text };
     }
 
     function buildPayload(hist, dropOldestTurns = 0) {
-      const trimmedHist = dropOldestTurns > 0 ? hist.slice(dropOldestTurns * 2) : hist;
-      let budget = MAX_CHARS;
+      const sys = systemMsg();
+      let live = liveHistory(hist);
+      if (dropOldestTurns > 0) live = live.slice(dropOldestTurns * 2);
+      let budget = inputBudget() - estTokens(sys.content) - imageTokens(live);
       const picked = [];
-      for (let i = trimmedHist.length - 1; i >= 0; i--) {
-        const len = (trimmedHist[i].ai ?? trimmedHist[i].text ?? '').length;
-        if (picked.length && budget - len < 0) break;
-        budget -= len;
-        picked.unshift(trimmedHist[i]);
+      for (let i = live.length - 1; i >= 0; i--) {
+        const t = msgTokens(live[i]);
+        if (picked.length && budget - t < 0) break;
+        budget -= t;
+        picked.unshift(live[i]);
       }
       while (picked.length && picked[0].role !== 'user') picked.shift();
-      if (!picked.length && hist.length) {
-        const lastUser = [...hist].reverse().find((m) => m.role === 'user');
+      if (!picked.length && live.length) {
+        const lastUser = [...live].reverse().find((m) => m.role === 'user');
         if (lastUser) picked.push(lastUser);
       }
       // 이미지는 가장 최근 이미지 메시지에만 다시 보내요 (컨텍스트/속도 절약)
       let lastImgIdx = -1;
       picked.forEach((m, i) => { if (m.images?.length) lastImgIdx = i; });
-      return [SYSTEM_MSG, ...picked.map((m, i) => toApi(m, i === lastImgIdx))];
+      return [sys, ...picked.map((m, i) => toApi(m, i === lastImgIdx))];
+    }
+
+    function estPayload(hist) {
+      const live = liveHistory(hist);
+      return estTokens(systemMsg().content) + live.reduce((a, m) => a + msgTokens(m), 0) + imageTokens(live);
+    }
+
+    // ---- 알림 ----
+    let toastTimer = null;
+    function showToast(text) {
+      let el = document.getElementById('toast');
+      if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
+      el.textContent = text;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 4500);
+    }
+
+    // ---- 서버의 실제 컨텍스트 길이 읽기 ----
+    async function ensureCtx(url, key) {
+      if (!url || ctxFor === url) return;
+      let n = 0;
+      try {
+        const r = await fetch(`${url}/props`, { headers: key ? { Authorization: `Bearer ${key}` } : {} });
+        if (r.ok) {
+          const d = await r.json();
+          n = Number(d?.default_generation_settings?.n_ctx || d?.n_ctx || 0);
+        }
+      } catch {}
+      ctxTokens = n >= 1024 ? n : CTX_FALLBACK;   // 못 읽으면 가장 작은 값으로 안전하게
+      ctxFor = url;
+    }
+
+    // ---- 대화 요약 (길어지면 앞부분을 요약해서 Cloudflare에 저장) ----
+    async function compactMemory(stable) {
+      const id = activeId;
+      const url = server.url, key = server.api_key;
+      if (!server.online || !url) return false;
+      const start = Math.max(0, covered - baseOffset);
+      const foldEnd = stable.length - KEEP_TAIL;
+      if (foldEnd - start < 2) return false;           // 요약할 만큼 쌓이지 않음
+      const chunk = stable.slice(start, foldEnd);
+
+      let prompt = '';
+      for (const cap of [1200, 600, 300]) {
+        const transcript = chunk.map((m) => `${m.role === 'user' ? '사용자' : 'AI'}: ${(m.ai ?? m.text ?? '').slice(0, cap)}`).join('\n');
+        prompt =
+          '아래 [이전 요약]과 [새 대화]를 합쳐서, 앞으로의 대화에 꼭 필요한 내용만 한국어로 간결하게 요약해줘. ' +
+          '사용자의 이름·목표·선호, 결정된 사항, 중요한 사실, 코드·숫자·고유명사, 아직 끝나지 않은 일은 빠뜨리지 마. ' +
+          '글머리표로 600자 이내, 요약만 출력해.\n\n' +
+          `[이전 요약]\n${sessionSummary || '(없음)'}\n\n[새 대화]\n${transcript}`;
+        if (estTokens(prompt) <= inputBudget() - 100) break;
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (key) headers['Authorization'] = `Bearer ${key}`;
+      const ctl3 = new AbortController();
+      const timer3 = setTimeout(() => ctl3.abort(), 120000);
+      let summary = '';
+      try {
+        const res = await fetch(`${url}/v1/chat/completions`, {
+          method: 'POST', headers, signal: ctl3.signal,
+          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, max_tokens: 400, temperature: 0.2 }),
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        summary = (data?.choices?.[0]?.message?.content || '').trim();
+      } finally { clearTimeout(timer3); }
+      if (!summary) return false;
+      if (id !== activeId) return false;               // 요약하는 사이에 다른 채팅으로 바뀜
+
+      const newCovered = baseOffset + foldEnd;
+      summary = summary.slice(0, 1500);
+      const title = chats.find((c) => c.id === id)?.title || '새 채팅';
+      const saveRes = await fetch(`${WORKER_URL}/api/turn`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          session_id: id, title, user_text: '', assistant_text: '',
+          summary, state_json: JSON.stringify({ covered: newCovered }),
+        }),
+      });
+      if (!saveRes.ok) return false;                   // 저장에 실패하면 적용하지 않아요 (다음에 불러올 때 어긋나지 않게)
+      if (id !== activeId) return true;
+      sessionSummary = summary;
+      covered = newCovered;
+      return true;
+    }
+
+    // 답변이 끝난 뒤, 다음 질문에 쓸 자리가 부족해질 것 같으면 미리 요약해 둬요
+    function maybeCompact() {
+      if (compactJob || !server.online) return;
+      if (estPayload(messages) < inputBudget() * SUMMARIZE_AT) return;
+      compactJob = (async () => {
+        try {
+          if (await compactMemory(messages.slice())) showToast('🧠 대화가 길어져서 앞부분을 요약해 저장했어요. 이어서 말해도 기억해요.');
+        } catch {} finally { compactJob = null; }
+      })();
+    }
+
+    // 보내기 직전에 자리가 모자라면(긴 글 붙여넣기 등) 먼저 요약해요
+    async function ensureRoom(turn) {
+      if (estPayload(messages.slice(0, -1)) <= inputBudget()) return;
+      turn.compacting = true;
+      try {
+        if (await compactMemory(messages.slice(0, -2))) showToast('🧠 대화가 길어져서 앞부분을 요약해 저장했어요.');
+      } catch {} finally { turn.compacting = false; }
+    }
+
+    // ---- 웹 검색 ----
+    async function runSearch(query) {
+      const res = await fetch(`${WORKER_URL}/api/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ query }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || `검색 오류 (${res.status})`);
+      return { results: d.results || [], remaining: d.remaining };
+    }
+
+    function buildSearchBlock(results) {
+      const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+      const head = `\n\n[웹 검색 결과 · ${today} 기준]\n`;
+      const tail = '\n\n위 검색 결과를 참고해서 답하세요. 결과에 없는 내용은 추측하지 말고 모른다고 하세요. 근거로 쓴 결과는 [번호]로 표시하세요.';
+      let room = Math.floor(inputBudget() * 0.35) - estTokens(head + tail);   // 검색 결과가 차지할 수 있는 자리
+      const used = [], lines = [];
+      for (const r of results) {
+        const line = `[${used.length + 1}] ${r.title}\n${r.snippet}\n(${r.url})`;
+        const t = estTokens(line);
+        if (used.length && room - t < 0) break;
+        room -= t; used.push(r); lines.push(line);
+      }
+      return { text: head + lines.join('\n\n') + tail, used };
     }
 
     function isContextOverflowError(err) {
@@ -1053,14 +1269,19 @@
           'err');
         return;
       }
+      if (compactJob) {                      // 대화 요약이 끝날 때까지 잠깐 기다려요
+        sendBtn.disabled = true;
+        try { await compactJob; } catch {}
+        sendBtn.disabled = false;
+      }
       // 이번 답변 동안은 주소를 고정해서, 중간에 폴링이 바꿔도 영향이 없게 해요
       const turnUrl = server.url, turnKey = server.api_key;
 
       const files = pending.filter((p) => p.kind === 'file');
       const imgs = pending.filter((p) => p.kind === 'img');
-      let ai = text, fileBudget = TOTAL_FILE_CHARS;
+      let ai = text, fileBudget = totalFileChars();
       for (const f of files) {
-        const t = f.text.slice(0, Math.max(0, Math.min(FILE_CHARS, fileBudget)));
+        const t = f.text.slice(0, Math.max(0, Math.min(fileChars(), fileBudget)));
         fileBudget -= t.length;
         ai += `\n\n[첨부 파일: ${f.name}]\n${t}${f.text.length > t.length ? '\n...(이하 생략)' : ''}`;
       }
@@ -1102,13 +1323,35 @@
         try {
           if (turn.gotToken || !live) return;
           const s = Math.floor((Date.now() - startT) / 1000);
-          live.txt.textContent = (turn.thinking ? '모델이 추론 중' : '응답 대기 중') + ` · ${s}초`
+          live.txt.textContent = (turn.searching ? '🌐 웹 검색 중' : turn.compacting ? '🧠 대화 요약 정리 중' : turn.thinking ? '모델이 추론 중' : '응답 대기 중') + ` · ${s}초`
             + (s >= 20 ? '\n모델 첫 응답 준비 중이에요. 잠시만 기다려 주세요.' : '');
         } catch {}
       }, 500);
 
       setBusy(true);
       try {
+        let searchSources = [];
+        await ensureCtx(turnUrl, turnKey);               // 서버의 실제 컨텍스트 길이에 맞춰요
+        if (searchOn) {
+          turn.searching = true;
+          try {
+            const { results, remaining } = await runSearch(text.slice(0, 200));
+            if (results.length) {
+              const blk = buildSearchBlock(results);
+              userMsg.ctxExtra = blk.text;               // 이번 질문에만 붙이고, 저장하는 기록에는 넣지 않아요
+              searchSources = blk.used;
+              if (typeof remaining === 'number' && remaining <= 2) showToast(`오늘 남은 검색 횟수: ${remaining}회`);
+            } else {
+              showToast('검색 결과가 없어서 검색 없이 답해요.');
+            }
+          } catch (e) {
+            showToast(`웹 검색 실패: ${e.message} · 검색 없이 답해요.`);
+          }
+          turn.searching = false;
+          if (userAborted) throw new Error('중지');
+        }
+        await ensureRoom(turn);                          // 자리가 모자라면 앞부분을 요약해서 저장
+        if (userAborted) throw new Error('중지');
         const headers = { 'Content-Type': 'application/json' };
         if (turnKey) headers['Authorization'] = `Bearer ${turnKey}`;
         const historyBeforeTurn = messages.slice(0, -1);
@@ -1163,11 +1406,13 @@
 
         if (!aiMsg.text.trim()) aiMsg.text = '(응답 없음)';
         finishLiveBubble(aiMsg);
+        if (searchSources.length) { aiMsg.sources = searchSources; renderSources(bubble, searchSources); }
         const saved = await saveChat(ai, aiMsg.text);
         if (saved && needTitle.has(activeId) && aiMsg.text !== '(응답 없음)') {
           needTitle.delete(activeId);
           titleJob = { id: activeId, q: userMsg.text, a: aiMsg.text };
         }
+        if (saved) maybeCompact();
       } catch (err) {
         if (userAborted && aiMsg.text.trim()) {
           finishLiveBubble(aiMsg);
@@ -1184,6 +1429,7 @@
           }
         }
       } finally {
+        delete userMsg.ctxExtra;
         clearInterval(timer);
         live = null;
         flushQueued = false;
@@ -1200,6 +1446,18 @@
     $('open-login-btn').addEventListener('click', () => { location.href = LOGIN_PAGE; });
     $('open-signup-btn').addEventListener('click', () => { location.href = SIGNUP_PAGE; });
     $('btn-new-chat').addEventListener('click', newChat);
+    function applySearchBtn() {
+      searchBtn.classList.toggle('on', searchOn);
+      searchBtn.setAttribute('aria-pressed', String(searchOn));
+      searchBtn.title = searchOn ? '웹 검색 켜짐 (눌러서 끄기)' : '웹 검색 꺼짐 (눌러서 켜기)';
+    }
+    applySearchBtn();
+    searchBtn.addEventListener('click', () => {
+      searchOn = !searchOn;
+      try { localStorage.setItem('zena_search', searchOn ? '1' : '0'); } catch {}
+      applySearchBtn();
+      showToast(searchOn ? '🌐 웹 검색을 켰어요. 답하기 전에 검색해서 참고해요.' : '웹 검색을 껐어요.');
+    });
     startBtn.addEventListener('click', async () => {
       if (!accessToken) return;
       startBtn.disabled = true;
@@ -1257,6 +1515,7 @@
       needTitle.add(activeId);
       server = { url: '', api_key: '', online: false };
       vm = { status: 'UNKNOWN', canStart: false, startedAt: 0 };
+      sessionSummary = ''; covered = 0; baseOffset = 0;
 
       renderPending();
       updateUi();
