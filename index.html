@@ -55,7 +55,7 @@
       display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
       padding: 12px 20px; border-bottom: 1px solid #1f2430; background: #131620;
     }
-    .header-left, .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .header-left, .nav-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .logo { font-size: 20px; font-weight: 700; color: #f3f4f6; user-select: none; cursor: default; }
     .logo span { color: #60a5fa; }
     .server-status { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #1f2430; color: #9ca3af; }
@@ -76,7 +76,7 @@
     .btn-stop-server { background: transparent; color: #f87171; border: 1px solid #7f1d1d; padding: 5px 12px; font-size: 12px; }
     .btn-stop-server:hover:not(:disabled) { background: rgba(248,113,113,.15); }
 
-    /* 헤더: 로고(왼쪽) · 서버 상태/버튼(가운데) · 계정(오른쪽) */
+    /* 헤더: 로고+서버 상태/버튼(왼쪽) · 웹 검색 모드(가운데) · 계정(오른쪽) */
     header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
     header .nav-actions { justify-self: end; }
     .header-center { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
@@ -84,27 +84,16 @@
       header { grid-template-columns: 1fr auto; row-gap: 8px; }
       .header-center { grid-column: 1 / -1; grid-row: 2; }
     }
-    /* 입력창 왼쪽 + 버튼과 팝업 메뉴 */
-    .plus-wrap { position: relative; flex-shrink: 0; }
+    /* 입력창 왼쪽 + 버튼 */
     .btn-plus { width: 38px; height: 38px; padding: 0; border-radius: 50%; background: #1d2433; color: #e5e7eb;
       font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: transform .15s, background .15s; }
     .btn-plus:hover:not(:disabled) { background: #263049; }
-    .btn-plus[aria-expanded="true"] { transform: rotate(45deg); background: #263049; }
-    .plus-menu { position: absolute; left: 0; bottom: calc(100% + 14px); z-index: 50; min-width: 240px; padding: 8px;
-      background: #1b2130; border: 1px solid #2f3850; border-radius: 16px; box-shadow: 0 12px 32px rgba(0,0,0,.55);
-      display: flex; flex-direction: column; }
-    .plus-menu[hidden] { display: none; }
-    .menu-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: transparent;
-      color: #e5e7eb; padding: 11px 12px; border-radius: 10px; font-size: 14px; }
-    .menu-item:hover:not(:disabled) { background: #263049; }
-    .menu-item .mi { width: 20px; text-align: center; }
-    .menu-item .mi-state { margin-left: auto; font-size: 12px; color: #93c5fd; background: rgba(96,165,250,.12); padding: 2px 8px; border-radius: 999px; }
-    .menu-item[data-mode="off"] .mi-state { color: #9ca3af; background: rgba(156,163,175,.12); }
-    .menu-sep { height: 1px; background: #2a3142; margin: 6px 4px; }
-    .search-chip { flex-shrink: 0; font-size: 12px; padding: 5px 10px; border-radius: 999px; cursor: pointer;
-      background: rgba(96,165,250,.15); color: #93c5fd; border: 1px solid rgba(96,165,250,.4); }
-    .search-chip[hidden] { display: none; }
-    .search-chip[data-mode="off"] { background: rgba(156,163,175,.12); color: #9ca3af; border-color: #3a4152; }
+    .search-seg { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: #1a2030; border: 1px solid #2a3142; }
+    .search-seg .seg-label { font-size: 12px; color: #9ca3af; padding: 0 8px 0 10px; white-space: nowrap; }
+    .search-seg button { background: transparent; color: #9ca3af; font-size: 12px; padding: 5px 12px; border-radius: 999px; }
+    .search-seg button:hover { color: #e5e7eb; }
+    .search-seg button.active { background: #1d4ed8; color: #fff; }
+    .search-seg button[data-mode="off"].active { background: #3a4152; color: #e5e7eb; }
     .codeblock { margin: 10px 0; border: 1px solid #2f3748; border-radius: 10px; background: #0d1117; overflow: hidden; white-space: normal; }
     .codeblock-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #161b22; font-size: 12px; color: #9ca3af; }
     .msg .codeblock-head { user-select: none !important; -webkit-user-select: none !important; cursor: default; }
@@ -274,11 +263,17 @@
   <header>
     <div class="header-left">
       <div class="logo">ZENA <span>AI</span></div>
-    </div>
-    <div class="header-center">
       <span id="server-status" class="server-status">서버 확인 중...</span>
       <button id="btn-start-server" class="btn-start" type="button" style="display:none">서버 켜기</button>
       <button id="btn-stop-server" class="btn-stop-server" type="button" style="display:none">서버 끄기</button>
+    </div>
+    <div class="header-center">
+      <div id="search-seg" class="search-seg" role="radiogroup" aria-label="웹 검색 모드" title="웹 검색: 자동은 최신 정보가 필요해 보일 때만 검색해요">
+        <span class="seg-label">🌐 웹 검색</span>
+        <button type="button" role="radio" data-mode="off">꺼짐</button>
+        <button type="button" role="radio" data-mode="auto">자동</button>
+        <button type="button" role="radio" data-mode="on">항상</button>
+      </div>
     </div>
 
     <div id="guest-nav" class="nav-actions">
@@ -304,15 +299,7 @@
       <button id="scroll-bottom-btn" class="scroll-bottom-btn" type="button" title="맨 아래로 이동" aria-label="맨 아래로 이동">↓</button>
       <div id="attach-row" class="attach-row"></div>
       <form id="prompt-form" class="prompt-bar">
-        <div class="plus-wrap">
-          <button id="plus-btn" type="button" class="btn-plus" title="추가" aria-label="추가" aria-haspopup="menu" aria-expanded="false">+</button>
-          <div id="plus-menu" class="plus-menu" role="menu" hidden>
-            <button id="menu-upload" type="button" role="menuitem" class="menu-item"><span class="mi">📎</span><span>파일 업로드</span></button>
-            <div class="menu-sep"></div>
-            <button id="menu-search" type="button" role="menuitem" class="menu-item" data-mode="auto"><span class="mi">🌐</span><span>웹 검색</span><span id="search-mode-label" class="mi-state">자동</span></button>
-          </div>
-        </div>
-        <span id="search-chip" class="search-chip" hidden></span>
+        <button id="plus-btn" type="button" class="btn-plus" title="파일/이미지 첨부" aria-label="파일/이미지 첨부">+</button>
         <input id="file-input" type="file" multiple hidden
                accept="image/*,.txt,.md,.py,.js,.ts,.csv,.json,.log,.html,.css,.xml,.yaml,.yml,.ini,.sh,.java,.c,.cpp,.cs,.sql" />
         <input id="prompt-input" type="text" placeholder="메시지를 입력하세요..." autocomplete="off" />
@@ -378,7 +365,6 @@
     const startBtn = $('btn-start-server');
     const stopBtn = $('btn-stop-server');
     const plusBtn = $('plus-btn');
-    const plusMenu = $('plus-menu');
     const scrollBottomBtn = $('scroll-bottom-btn');
 
     // ---- 상태 ----
@@ -551,7 +537,6 @@
       promptInput.placeholder = loggedIn ? '메시지를 입력하세요...' : '로그인 후 채팅을 이용할 수 있어요.';
       sendBtn.disabled = !usable;
       plusBtn.disabled = !usable || busy;
-      if (plusBtn.disabled) closePlusMenu();
       $('btn-new-chat').disabled = !usable;
       promptForm.classList.toggle('locked', !usable);
       refreshStatusLabel();
@@ -1007,7 +992,7 @@
         return;
       }
       if (!messages.length) {
-        setHint(['무엇을 도와드릴까요?', '+ 버튼으로 파일·이미지 첨부와 웹 검색을 쓸 수 있어요.']);
+        setHint(['무엇을 도와드릴까요?', '+ 버튼으로 파일·이미지를 첨부하고, 위쪽에서 웹 검색 모드를 고를 수 있어요.']);
         updateScrollButton();
         return;
       }
@@ -1059,22 +1044,8 @@
       if (added) renderPending();
     }
 
-    function closePlusMenu() {
-      plusMenu.hidden = true;
-      plusBtn.setAttribute('aria-expanded', 'false');
-    }
-    plusBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (plusBtn.disabled) return;
-      const open = plusMenu.hidden;
-      plusMenu.hidden = !open;
-      plusBtn.setAttribute('aria-expanded', String(open));
-    });
-    document.addEventListener('click', (e) => { if (!plusMenu.hidden && !plusMenu.contains(e.target)) closePlusMenu(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePlusMenu(); });
-    $('menu-upload').addEventListener('click', () => {
-      closePlusMenu();
-      if (!canUseChat()) return;
+    plusBtn.addEventListener('click', () => {
+      if (plusBtn.disabled || !canUseChat()) return;
       fileInput.click();
     });
     fileInput.addEventListener('change', async () => {
@@ -1366,7 +1337,6 @@
       const usable = canUseChat();
       promptInput.disabled = v || !usable;
       plusBtn.disabled = v || !usable;
-      if (plusBtn.disabled) closePlusMenu();
     }
 
     /**
@@ -1674,15 +1644,17 @@
     $('open-login-btn').addEventListener('click', () => { location.href = LOGIN_PAGE; });
     $('open-signup-btn').addEventListener('click', () => { location.href = SIGNUP_PAGE; });
     $('btn-new-chat').addEventListener('click', newChat);
-    const SEARCH_LABELS = { auto: '자동', on: '항상 켜짐', off: '꺼짐' };
+    const SEARCH_TOAST = {
+      auto: '🌐 웹 검색: 자동 — 최신 정보가 필요해 보일 때만 검색해요.',
+      on: '🌐 웹 검색: 항상 — 모든 질문에서 검색해요.',
+      off: '웹 검색: 꺼짐',
+    };
     function applySearchMode() {
-      const item = $('menu-search'), chip = $('search-chip');
-      item.dataset.mode = searchMode;
-      $('search-mode-label').textContent = SEARCH_LABELS[searchMode];
-      chip.hidden = searchMode === 'auto';
-      chip.dataset.mode = searchMode;
-      chip.textContent = searchMode === 'on' ? '🌐 검색 항상 켜짐' : '🌐 검색 꺼짐';
-      chip.title = '누르면 자동 모드로 돌아가요';
+      document.querySelectorAll('#search-seg button').forEach((b) => {
+        const on = b.dataset.mode === searchMode;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-checked', String(on));
+      });
     }
     function setSearchMode(m) {
       searchMode = m;
@@ -1690,12 +1662,9 @@
       applySearchMode();
     }
     applySearchMode();
-    $('menu-search').addEventListener('click', () => {
-      setSearchMode(searchMode === 'auto' ? 'on' : searchMode === 'on' ? 'off' : 'auto');
-      showToast(searchMode === 'auto' ? '🌐 웹 검색: 자동 — 필요하다고 판단될 때만 검색해요.'
-        : searchMode === 'on' ? '🌐 웹 검색: 항상 켜짐 — 모든 질문에서 검색해요.' : '웹 검색: 꺼짐');
+    document.querySelectorAll('#search-seg button').forEach((b) => {
+      b.addEventListener('click', () => { setSearchMode(b.dataset.mode); showToast(SEARCH_TOAST[b.dataset.mode]); });
     });
-    $('search-chip').addEventListener('click', () => { setSearchMode('auto'); showToast('🌐 웹 검색: 자동'); });
     stopBtn.addEventListener('click', async () => {
       if (!accessToken) return;
       if (!confirm('서버를 끌까요?\n대화 중인 사용자가 있으면 답변이 끊겨요. 다시 켜려면 약 5분 걸려요.')) return;
