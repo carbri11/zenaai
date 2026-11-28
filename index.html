@@ -74,6 +74,15 @@
       box-shadow: 0 6px 18px rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .2s; }
     .toast.show { opacity: 1; }
     .btn-stop-server { background: transparent; color: #f87171; border: 1px solid #7f1d1d; padding: 5px 12px; font-size: 12px; }
+    .btn-log { background: transparent; color: #93c5fd; border: 1px solid #2f4a7a; padding: 5px 12px; font-size: 12px; }
+    .btn-log:hover:not(:disabled) { background: rgba(96,165,250,.15); }
+    .log-modal { position: fixed; inset: 0; z-index: 9000; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .log-modal[hidden] { display: none; }
+    .log-panel { width: min(900px, 100%); max-height: 85dvh; display: flex; flex-direction: column; background: #0b0e14; border: 1px solid #2a3142; border-radius: 14px; box-shadow: 0 20px 50px rgba(0,0,0,.6); }
+    .log-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #1f2430; }
+    .log-head strong { font-size: 14px; }
+    .log-head .log-state { font-size: 12px; color: #9ca3af; margin-left: auto; }
+    .log-body { margin: 0; padding: 12px 16px; overflow: auto; flex: 1; min-height: 240px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #cbd5e1; white-space: pre-wrap; word-break: break-all; user-select: text; -webkit-user-select: text; }
     .btn-stop-server:hover:not(:disabled) { background: rgba(248,113,113,.15); }
 
     /* 헤더: 로고와 서버 상태/버튼(왼쪽) · 계정(오른쪽) */
@@ -278,6 +287,7 @@
         <span id="server-status" class="server-status">서버 확인 중...</span>
         <button id="btn-start-server" class="btn-start" type="button" style="display:none">서버 켜기</button>
         <button id="btn-stop-server" class="btn-stop-server" type="button" style="display:none">서버 끄기</button>
+        <button id="btn-view-log" class="btn-log" type="button" style="display:none">로그 보기</button>
       </div>
     </div>
 
@@ -319,6 +329,17 @@
         <button id="send-btn" type="submit" class="btn-primary">전송</button>
       </form>
     </main>
+  </div>
+
+  <div id="log-modal" class="log-modal" role="dialog" aria-modal="true" aria-label="서버 로그" hidden>
+    <div class="log-panel">
+      <div class="log-head">
+        <strong>서버 로그</strong>
+        <span id="log-state" class="log-state"></span>
+        <button id="log-close" class="btn-outline" type="button">닫기</button>
+      </div>
+      <pre id="log-body" class="log-body">불러오는 중…</pre>
+    </div>
   </div>
 
   <div id="img-lightbox" class="img-lightbox" role="dialog" aria-modal="true" aria-label="이미지 확대 보기">
@@ -377,6 +398,7 @@
     const serverStatus = $('server-status'), promptForm = $('prompt-form');
     const startBtn = $('btn-start-server');
     const stopBtn = $('btn-stop-server');
+    const logBtn = $('btn-view-log');
     const plusBtn = $('plus-btn');
     const plusMenu = $('plus-menu');
     const scrollBottomBtn = $('scroll-bottom-btn');
@@ -526,6 +548,11 @@
       const showStop = canUseChat() && server.online && vm.canStart && !isStopping();
       stopBtn.style.display = showStop ? '' : 'none';
       stopBtn.disabled = false;
+      // 서버를 켜는 중이거나 끄는 중일 때만, 권한이 있는 사용자에게 '로그 보기'를 보여줘요
+      // (서버가 이미 온라인이면 VM 상태 값이 오래된 것일 수 있어서, 끄는 중인 경우가 아니면 숨겨요)
+      const transitioning = isStopping()
+        || (!server.online && (['PROVISIONING', 'STAGING', 'STOPPING', 'SUSPENDING'].includes(vm.status) || vmBooting()));
+      logBtn.style.display = (canUseChat() && vm.canStart && transitioning) ? '' : 'none';
     }
 
     function refreshStatusLabel() {
@@ -558,6 +585,38 @@
     }
 
     // ---- 서버 주소 ----
+    // ---- 서버 로그 보기 (허용된 이메일만) ----
+    let logTimer = null, logBusy = false;
+    const logModal = $('log-modal'), logBody = $('log-body'), logState = $('log-state');
+    async function fetchLogs() {
+      if (logBusy || !accessToken) return;
+      logBusy = true;
+      try {
+        const res = await fetch(`${WORKER_URL}/api/vm/logs`, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) { logBody.textContent = d.error || `로그를 불러오지 못했어요 (${res.status})`; if (res.status === 403) closeLogs(); return; }
+        const near = logBody.scrollHeight - logBody.scrollTop - logBody.clientHeight < 60;
+        logBody.textContent = d.logs || '(아직 로그가 없어요)';
+        if (near) logBody.scrollTop = logBody.scrollHeight;
+        logState.textContent = `VM ${d.status} · 3초마다 갱신`;
+      } catch (err) {
+        logBody.textContent = '로그를 불러오지 못했어요: ' + err.message;
+      } finally { logBusy = false; }
+    }
+    function openLogs() {
+      if (!vm.canStart) return;
+      logModal.hidden = false;
+      logBody.textContent = '불러오는 중…';
+      fetchLogs().then(() => { logBody.scrollTop = logBody.scrollHeight; });
+      clearInterval(logTimer);
+      logTimer = setInterval(() => { if (!document.hidden) fetchLogs(); }, 3000);
+    }
+    function closeLogs() { logModal.hidden = true; clearInterval(logTimer); logTimer = null; }
+    logBtn.addEventListener('click', openLogs);
+    $('log-close').addEventListener('click', closeLogs);
+    logModal.addEventListener('click', (e) => { if (e.target === logModal) closeLogs(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !logModal.hidden) closeLogs(); });
+
     async function pollVm() {
       if (!canUseChat() || !accessToken) return;
       try {
