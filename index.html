@@ -362,19 +362,27 @@
     const WORKER_URL = 'https://zena-chat-memory.zena-ai.workers.dev';
     const LOGIN_PAGE = 'login/';
     const SIGNUP_PAGE = 'signup/';
-    const SYSTEM_MSG = { role: 'system', content: '당신은 정확한 AI 어시스턴트 ZENA AI입니다. 한국어로 답해. 사용자가 요청한 사항은 최대한 이행해 확실하지 않은 사실은 아는 척하지 말고 모른다고 말해. 너가 코드를 작성할떈 자체 검증을 해서 문법을 확인하고 정상적인 문법으로 고쳐. 들여쓰기에 유의해.' };
+    const SYSTEM_MSG = { role: 'system', content: '당신은 정확한 AI 어시스턴트 ZENA AI입니다. 한국어로 답해. 사용자가 요청한 사항은 최대한 이행해 확실하지 않은 사실은 아는 척하지 말고 모른다고 말해.' };
+    // 코딩 질문일 때: 안내문을 덧붙이고, 코드가 흐트러지지 않게 샘플링을 보수적으로 바꿔요
+    const CODE_GUIDE = '\n\n[코드 작성 규칙] 코드는 반드시 ```언어 코드블록 안에 써. 모든 줄의 들여쓰기를 그 언어의 관례(Python은 공백 4칸, JS/HTML/CSS는 공백 2칸)대로 정확히 유지해. 괄호·따옴표·콜론·세미콜론 등 문법 오류 없이 바로 실행되는 완성된 코드로 쓰고, "..."나 "생략" 없이 전체를 써. 쓰기 전에 필요한 import와 변수 선언을 확인해. 코드 앞뒤 설명은 짧게.';
+    const CODE_SAMPLING = { temperature: 0.2, top_p: 0.9, top_k: 20, repeat_penalty: 1.0 };
+    const CODE_HINT = /(코드|코딩|함수|클래스|스크립트|프로그램|알고리즘|버그|에러|오류|컴파일|정규식|라이브러리|\bAPI\b|\bSQL\b|python|파이썬|javascript|자바스크립트|typescript|\bjava\b|\bc\+\+|\bc#|\brust\b|\bgo\b|kotlin|swift|\bhtml\b|\bcss\b|react|node|bash|쉘|리눅스|도커|docker|git\b|구현|만들어\s*줘|고쳐|디버그|리팩터|```)/i;
+    let codeMode = false;
     const CONTINUE_PROMPT = '앞의 답변을 끊긴 부분부터 바로 이어서 작성해 줘. 중복은 피하고 이어서만 써.';
     // 서버(llama-server)의 실제 컨텍스트 길이는 /props 로 읽어서 맞춰요. 못 읽으면 가장 작은 값(4096)을 써요.
     // 한글은 토큰을 많이 쓰기 때문에 글자당 1.2토큰으로 넉넉히(보수적으로) 계산해요.
     const CTX_FALLBACK = 4096;
-    const MAX_OUT = 1024;
+    // 한 번에 쓸 수 있는 답변 길이: 컨텍스트가 크면 늘려서 긴 코드가 중간에 잘리지 않게 해요
+    const maxOut = () => (ctxTokens >= 12000 ? 3072 : ctxTokens >= 8000 ? 2048 : 1024);
     const SAFETY_TOKENS = 400;      // 계산 오차 여유분
-    const SUMMARIZE_AT = 0.55;      // 입력 예산의 이 비율을 넘으면 앞부분을 요약해서 저장
-    const KEEP_TAIL = 2;            // 요약할 때 마지막 한 턴(질문+답)은 그대로 둬요
+    const SUMMARIZE_AT = 0.8;       // 입력 예산의 이 비율을 넘으면 앞부분을 요약해서 저장
+    const TAIL_FRAC = 0.3;          // 요약한 뒤에도 최근 대화를 이 비율만큼은 원문 그대로 남겨요
     const IMG_TOKENS = 700;         // 이미지 1장이 쓰는 토큰 (넉넉히)
     const COMPACT_DELAY_MS = 15000; // 답변 후 이만큼 기다려도 입력이 없을 때만 요약을 시작해요
     let ctxTokens = CTX_FALLBACK;
-    const inputBudget = () => Math.max(1000, ctxTokens - MAX_OUT - SAFETY_TOKENS);
+    const inputBudget = () => Math.max(1000, ctxTokens - maxOut() - SAFETY_TOKENS);
+    // 요약 글자 수 한도: 컨텍스트가 클수록 더 자세히 기억해요
+    const summaryCap = () => Math.max(500, Math.min(2000, Math.floor(inputBudget() * 0.2 / 1.2)));
     const fileChars = () => Math.floor(inputBudget() * 0.35 / 1.2);
     const totalFileChars = () => Math.floor(inputBudget() * 0.5 / 1.2);
     const MAX_IMAGES = 2;
@@ -1182,10 +1190,10 @@
 
     function systemMsg() {
       const extra = sessionSummary
-        ? `\n\n[이전 대화 요약 - 오래된 대화는 이 요약으로 기억하세요]\n${sessionSummary}`
+        ? `\n\n[이 채팅의 앞부분 기억 - 사용자가 앞에서 한 말·요청·정보는 아래 내용과 대화 기록에서 찾아 반드시 참고해서 일관되게 답하세요]\n${sessionSummary}`
         : '';
       // system 메시지는 하나만 둬야 해서 요약도 같은 메시지에 합쳐요
-      return { role: 'system', content: SYSTEM_MSG.content + extra };
+      return { role: 'system', content: SYSTEM_MSG.content + (codeMode ? CODE_GUIDE : '') + extra };
     }
 
     // 요약에 이미 들어간 앞부분 메시지는 빼고 보내요
@@ -1208,22 +1216,51 @@
       return { role: 'user', content: text };
     }
 
+    // 자리가 모자라서 빠지는 오래된 메시지도 '사용자가 한 말'만은 짧게 남겨서 참고하게 해요
+    function buildDigest(dropped, room) {
+      const head = '\n\n[요약되지 않고 빠진 이전 대화 중 사용자가 한 말 (참고용 발췌)]\n';
+      let left = room - estTokens(head);
+      const lines = [];
+      for (let i = dropped.length - 1; i >= 0; i--) {
+        const m = dropped[i];
+        if (m.role !== 'user') continue;
+        const line = '- ' + String(m.text ?? m.ai ?? '').replace(/\s+/g, ' ').trim().slice(0, 90);
+        const t = estTokens(line);
+        if (left - t < 0) break;
+        left -= t; lines.unshift(line);
+      }
+      return lines.length ? head + lines.join('\n') : '';
+    }
+
     function buildPayload(hist, dropOldestTurns = 0) {
-      const sys = systemMsg();
+      const baseSys = systemMsg();
       let live = liveHistory(hist);
       if (dropOldestTurns > 0) live = live.slice(dropOldestTurns * 2);
-      let budget = inputBudget() - estTokens(sys.content) - imageTokens(live);
-      const picked = [];
-      for (let i = live.length - 1; i >= 0; i--) {
-        const t = msgTokens(live[i]);
-        if (picked.length && budget - t < 0) break;
-        budget -= t;
-        picked.unshift(live[i]);
-      }
-      while (picked.length && picked[0].role !== 'user') picked.shift();
-      if (!picked.length && live.length) {
-        const lastUser = [...live].reverse().find((m) => m.role === 'user');
-        if (lastUser) picked.push(lastUser);
+      const imgTok = imageTokens(live);
+      const pick = (budget) => {
+        const picked = [];
+        for (let i = live.length - 1; i >= 0; i--) {
+          const t = msgTokens(live[i]);
+          if (picked.length && budget - t < 0) break;
+          budget -= t;
+          picked.unshift(live[i]);
+        }
+        while (picked.length && picked[0].role !== 'user') picked.shift();
+        if (!picked.length && live.length) {
+          const lastUser = [...live].reverse().find((m) => m.role === 'user');
+          if (lastUser) picked.push(lastUser);
+        }
+        return picked;
+      };
+      const full = inputBudget() - estTokens(baseSys.content) - imgTok;
+      let picked = pick(full);
+      let sys = baseSys;
+      if (picked.length < live.length) {                    // 일부가 빠져야 하면, 발췌를 넣을 자리를 따로 떼어둬요
+        const reserve = Math.min(350, Math.floor(inputBudget() * 0.12));
+        picked = pick(full - reserve);
+        const cut = picked.length ? live.indexOf(picked[0]) : live.length;
+        const digest = buildDigest(live.slice(0, Math.max(0, cut)), reserve);
+        if (digest) sys = { role: 'system', content: baseSys.content + digest };
       }
       // 이미지는 가장 최근 이미지 메시지에만 다시 보내요 (컨텍스트/속도 절약)
       let lastImgIdx = -1;
@@ -1263,12 +1300,24 @@
     }
 
     // ---- 대화 요약 (길어지면 앞부분을 요약해서 Cloudflare에 저장) ----
-    async function compactMemory(stable) {
+    // 요약하지 않고 그대로 남길 최근 메시지 수 (짝수, 최소 2): 최근 대화가 입력 예산의 TAIL_FRAC 이내가 되게
+    function keepCount(stable, minKeep = 2) {
+      let n = 0, tok = 0;
+      for (let i = stable.length - 1; i >= 0; i--) {
+        tok += msgTokens(stable[i]);
+        if (tok > inputBudget() * TAIL_FRAC) break;
+        n++;
+      }
+      n = Math.max(minKeep, n - (n % 2));
+      return n;
+    }
+
+    async function compactMemory(stable, minKeep = 2, forceMin = false) {
       const id = activeId;
       const url = server.url, key = server.api_key;
       if (!server.online || !url) return false;
       const start = Math.max(0, covered - baseOffset);
-      const foldEnd = stable.length - KEEP_TAIL;
+      const foldEnd = stable.length - (forceMin ? minKeep : keepCount(stable, minKeep));
       if (foldEnd - start < 2) return false;           // 요약할 만큼 쌓이지 않음
       const chunk = stable.slice(start, foldEnd);
 
@@ -1278,7 +1327,8 @@
         prompt =
           '아래 [이전 요약]과 [새 대화]를 합쳐서, 앞으로의 대화에 꼭 필요한 내용만 한국어로 간결하게 요약해줘. ' +
           '사용자의 이름·목표·선호, 결정된 사항, 중요한 사실, 코드·숫자·고유명사, 아직 끝나지 않은 일은 빠뜨리지 마. ' +
-          '글머리표로 600자 이내, 요약만 출력해.\n\n' +
+          '사용자가 직접 말한 사실·요청·지시는 표현을 바꾸지 말고 그대로 남겨. ' +
+          `글머리표로 ${Math.floor(summaryCap() * 0.85)}자 이내, 요약만 출력해.\n\n` +
           `[이전 요약]\n${sessionSummary || '(없음)'}\n\n[새 대화]\n${transcript}`;
         if (estTokens(prompt) <= inputBudget() - 100) break;
       }
@@ -1292,7 +1342,7 @@
       try {
         const res = await fetch(`${url}/v1/chat/completions`, {
           method: 'POST', headers, signal: ctl3.signal,
-          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, max_tokens: 400, temperature: 0.2 }),
+          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, max_tokens: Math.min(1200, Math.ceil(summaryCap() * 1.3)), temperature: 0.2 }),
         });
         if (!res.ok) return false;
         const data = await res.json();
@@ -1302,7 +1352,7 @@
       if (id !== activeId) return false;               // 요약하는 사이에 다른 채팅으로 바뀜
 
       const newCovered = baseOffset + foldEnd;
-      summary = summary.slice(0, 1500);
+      summary = summary.slice(0, summaryCap());
       const title = chats.find((c) => c.id === id)?.title || '새 채팅';
       const saveRes = await fetch(`${WORKER_URL}/api/turn`, {
         method: 'POST',
@@ -1341,7 +1391,10 @@
       if (estPayload(messages.slice(0, -1)) <= inputBudget()) return;
       turn.compacting = true;
       try {
-        if (await compactMemory(messages.slice(0, -2))) showToast('🧠 대화가 길어져서 앞부분을 요약해 저장했어요.');
+        const stable = messages.slice(0, -2);
+        let ok = await compactMemory(stable);
+        if (estPayload(messages.slice(0, -1)) > inputBudget()) ok = (await compactMemory(stable, 2, true)) || ok;   // 아직도 모자라면 최근 대화도 요약
+        if (ok) showToast('🧠 대화가 길어져서 앞부분을 요약해 저장했어요.');
       } catch {} finally { turn.compacting = false; }
     }
 
@@ -1446,7 +1499,7 @@
         method: 'POST',
         headers,
         signal: ctl.signal,
-        body: JSON.stringify({ messages: payloadMsgs, stream: true, max_tokens: MAX_OUT }),
+        body: JSON.stringify({ messages: payloadMsgs, stream: true, max_tokens: maxOut(), ...(codeMode ? CODE_SAMPLING : {}) }),
       });
       if (!res.ok) {
         let body = '';
@@ -1600,6 +1653,8 @@
 
       const startT = Date.now();
       const turn = { gotToken: false, thinking: false };
+      // 이번 질문이 코딩 관련이거나, 직전 답변에 코드가 있었던 이어지는 질문이면 코드 모드
+      codeMode = CODE_HINT.test(text) || (text.length < 80 && /```/.test(messages.slice(-4, -2).map((m) => m.text || '').join('')));
       let titleJob = null;
       live.txt.textContent = '응답 대기 중 · 0초';
 
