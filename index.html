@@ -753,7 +753,11 @@
     // 저장된 사용자 메시지는 "질문\n\n[첨부 파일: 이름]\n내용..." 형태라서, 화면에는 질문 + 칩으로만 보여줘요
     function restoreMessage(m) {
       const content = m.content || '';
-      if (m.role !== 'user') return { role: 'assistant', text: content };
+      if (m.role !== 'user') {
+        let sources;
+        try { const j = m.sources ? JSON.parse(m.sources) : null; if (Array.isArray(j) && j.length) sources = j; } catch {}
+        return sources ? { role: 'assistant', text: content, sources } : { role: 'assistant', text: content };
+      }
       const idx = content.indexOf('\n\n[첨부 파일: ');
       const imgNote = content.match(/\n*\(이미지 (\d+)장 첨부\)\s*$/);
       if (idx < 0 && !imgNote) return { role: 'user', text: content, ai: content };
@@ -786,7 +790,7 @@
       if (activeId === id) newChat(); else renderHistory();
     }
 
-    async function saveChat(userText, assistantText) {
+    async function saveChat(userText, assistantText, sources) {
       if (!canUseChat()) return false;
       const existing = chats.find((c) => c.id === activeId);
       const title = existing?.title || (userText || '새 채팅').slice(0, 26);
@@ -798,6 +802,7 @@
           title,
           user_text: userText,
           assistant_text: assistantText,
+          sources: Array.isArray(sources) && sources.length ? sources.map((x) => ({ title: x.title, url: x.url })) : undefined,
         }),
       });
       if (!res.ok) {
@@ -1697,7 +1702,7 @@
         if (!aiMsg.text.trim()) aiMsg.text = '(응답 없음)';
         finishLiveBubble(aiMsg);
         if (searchSources.length) { aiMsg.sources = searchSources; renderSources(bubble, searchSources); }
-        const saved = await saveChat(ai, aiMsg.text);
+        const saved = await saveChat(ai, aiMsg.text, aiMsg.sources);
         if (saved && needTitle.has(activeId) && aiMsg.text !== '(응답 없음)') {
           needTitle.delete(activeId);
           titleJob = { id: activeId, q: userMsg.text, a: aiMsg.text };
@@ -1706,7 +1711,7 @@
       } catch (err) {
         if (userAborted && aiMsg.text.trim()) {
           finishLiveBubble(aiMsg);
-          await saveChat(ai, aiMsg.text);
+          await saveChat(ai, aiMsg.text, aiMsg.sources);
         } else {
           live = null;
           messages.splice(-2, 2);
