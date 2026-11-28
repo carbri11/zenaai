@@ -362,7 +362,7 @@
     const WORKER_URL = 'https://zena-chat-memory.zena-ai.workers.dev';
     const LOGIN_PAGE = 'login/';
     const SIGNUP_PAGE = 'signup/';
-    const SYSTEM_MSG = { role: 'system', content: '당신은 정확한 AI 어시스턴트 ZENA AI입니다. 한국어로 답해. 사용자가 요청한 사항은 최대한 이행해 확실하지 않은 사실은 아는 척하지 말고 모른다고 말해.' };
+    const SYSTEM_MSG = { role: 'system', content: '당신은 정확한 AI 어시스턴트 ZENA AI입니다. 한국어로 답해. 사용자가 요청한 사항은 최대한 이행해 확실하지 않은 사실은 아는 척하지 말고 모른다고 말해. 너가 코드를 작성할떈 자체 검증을 해서 문법을 확인하고 정상적인 문법으로 고쳐. 들여쓰기에 유의해.' };
     const CONTINUE_PROMPT = '앞의 답변을 끊긴 부분부터 바로 이어서 작성해 줘. 중복은 피하고 이어서만 써.';
     // 서버(llama-server)의 실제 컨텍스트 길이는 /props 로 읽어서 맞춰요. 못 읽으면 가장 작은 값(4096)을 써요.
     // 한글은 토큰을 많이 쓰기 때문에 글자당 1.2토큰으로 넉넉히(보수적으로) 계산해요.
