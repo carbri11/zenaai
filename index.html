@@ -107,6 +107,7 @@
     .menu-item:hover:not(:disabled) { background: #263049; }
     .menu-item .mi { width: 20px; text-align: center; }
     .menu-item .mi-state { margin-left: auto; font-size: 12px; color: #93c5fd; background: rgba(96,165,250,.12); padding: 2px 8px; border-radius: 999px; }
+    .menu-item[data-on="0"] .mi-state { color: #9ca3af; background: rgba(156,163,175,.12); }
     .menu-item[data-mode="off"] .mi-state { color: #9ca3af; background: rgba(156,163,175,.12); }
     .menu-sep { height: 1px; background: #2a3142; margin: 6px 4px; }
     .search-chip { flex-shrink: 0; font-size: 12px; padding: 5px 10px; border-radius: 999px; cursor: pointer;
@@ -320,9 +321,11 @@
             <button id="menu-upload" type="button" role="menuitem" class="menu-item"><span class="mi">📎</span><span>파일 업로드</span></button>
             <div class="menu-sep"></div>
             <button id="menu-search" type="button" role="menuitem" class="menu-item" data-mode="auto"><span class="mi">🌐</span><span>웹 검색</span><span id="search-mode-label" class="mi-state">자동</span></button>
+            <button id="menu-think" type="button" role="menuitem" class="menu-item" data-on="0"><span class="mi">🧠</span><span>생각 모드</span><span id="think-label" class="mi-state">꺼짐</span></button>
           </div>
         </div>
         <span id="search-chip" class="search-chip" hidden></span>
+        <span id="think-chip" class="search-chip" hidden title="누르면 끄기">🧠 생각 모드 켜짐</span>
         <input id="file-input" type="file" multiple hidden
                accept="image/*,.txt,.md,.py,.js,.ts,.csv,.json,.log,.html,.css,.xml,.yaml,.yml,.ini,.sh,.java,.c,.cpp,.cs,.sql" />
         <input id="prompt-input" type="text" placeholder="메시지를 입력하세요..." autocomplete="off" />
@@ -368,12 +371,17 @@
     const CODE_SAMPLING = { temperature: 0.2, top_p: 0.9, top_k: 20, repeat_penalty: 1.0 };
     const CODE_HINT = /(코드|코딩|함수|클래스|스크립트|프로그램|알고리즘|버그|에러|오류|컴파일|정규식|라이브러리|\bAPI\b|\bSQL\b|python|파이썬|javascript|자바스크립트|typescript|\bjava\b|\bc\+\+|\bc#|\brust\b|\bgo\b|kotlin|swift|\bhtml\b|\bcss\b|react|node|bash|쉘|리눅스|도커|docker|git\b|구현|만들어\s*줘|고쳐|디버그|리팩터|```)/i;
     let codeMode = false;
+    let thinkMode = false;   // 생각 모드: 답하기 전에 길게 추론해서 더 정확하게 (느림)
+    try { thinkMode = localStorage.getItem('zena_think') === '1'; } catch {}
+    const THINK_SAMPLING = { temperature: 0.6, top_p: 0.95, top_k: 20, repeat_penalty: 1.0 };
     const CONTINUE_PROMPT = '앞의 답변을 끊긴 부분부터 바로 이어서 작성해 줘. 중복은 피하고 이어서만 써.';
     // 서버(llama-server)의 실제 컨텍스트 길이는 /props 로 읽어서 맞춰요. 못 읽으면 가장 작은 값(4096)을 써요.
     // 한글은 토큰을 많이 쓰기 때문에 글자당 1.2토큰으로 넉넉히(보수적으로) 계산해요.
     const CTX_FALLBACK = 4096;
     // 한 번에 쓸 수 있는 답변 길이: 컨텍스트가 크면 늘려서 긴 코드가 중간에 잘리지 않게 해요
-    const maxOut = () => (ctxTokens >= 12000 ? 3072 : ctxTokens >= 8000 ? 2048 : 1024);
+    const maxOut = () => thinkMode
+      ? (ctxTokens >= 12000 ? 6144 : ctxTokens >= 8000 ? 4096 : 2048)       // 생각 모드는 추론에도 토큰을 써요
+      : (ctxTokens >= 12000 ? 3072 : ctxTokens >= 8000 ? 2048 : 1024);
     const SAFETY_TOKENS = 400;      // 계산 오차 여유분
     const SUMMARIZE_AT = 0.8;       // 입력 예산의 이 비율을 넘으면 앞부분을 요약해서 저장
     const TAIL_FRAC = 0.3;          // 요약한 뒤에도 최근 대화를 이 비율만큼은 원문 그대로 남겨요
@@ -840,7 +848,7 @@
           method: 'POST', headers, signal: ctl2.signal,
           body: JSON.stringify({
             messages: [{ role: 'user', content: prompt }],
-            stream: false, max_tokens: 24, temperature: 0.3,
+            stream: false, max_tokens: 24, temperature: 0.3, chat_template_kwargs: { enable_thinking: false },
           }),
         });
         if (!res.ok) return;
@@ -1342,7 +1350,7 @@
       try {
         const res = await fetch(`${url}/v1/chat/completions`, {
           method: 'POST', headers, signal: ctl3.signal,
-          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, max_tokens: Math.min(1200, Math.ceil(summaryCap() * 1.3)), temperature: 0.2 }),
+          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, max_tokens: Math.min(1200, Math.ceil(summaryCap() * 1.3)), temperature: 0.2, chat_template_kwargs: { enable_thinking: false } }),
         });
         if (!res.ok) return false;
         const data = await res.json();
@@ -1499,7 +1507,7 @@
         method: 'POST',
         headers,
         signal: ctl.signal,
-        body: JSON.stringify({ messages: payloadMsgs, stream: true, max_tokens: maxOut(), ...(codeMode ? CODE_SAMPLING : {}) }),
+        body: JSON.stringify({ messages: payloadMsgs, stream: true, max_tokens: maxOut(), chat_template_kwargs: { enable_thinking: thinkMode }, ...(thinkMode ? THINK_SAMPLING : codeMode ? CODE_SAMPLING : {}) }),
       });
       if (!res.ok) {
         let body = '';
@@ -1818,6 +1826,23 @@
       showToast(searchMode === 'auto' ? '🌐 웹 검색: 자동 — 필요하다고 판단될 때만 검색해요.'
         : '🌐 웹 검색: 항상 켜짐 — 모든 질문에서 검색해요.');
     });
+    function applyThinkMode() {
+      $('menu-think').dataset.on = thinkMode ? '1' : '0';
+      $('think-label').textContent = thinkMode ? '켜짐' : '꺼짐';
+      $('think-chip').hidden = !thinkMode;
+    }
+    function setThinkMode(v) {
+      thinkMode = v;
+      try { localStorage.setItem('zena_think', v ? '1' : '0'); } catch {}
+      applyThinkMode();
+    }
+    applyThinkMode();
+    $('menu-think').addEventListener('click', () => {
+      closePlusMenu();
+      setThinkMode(!thinkMode);
+      showToast(thinkMode ? '🧠 생각 모드 켜짐 — 더 정확하지만 답변이 나오기까지 오래 걸려요.' : '🧠 생각 모드 꺼짐 — 바로 답해요.');
+    });
+    $('think-chip').addEventListener('click', () => { setThinkMode(false); showToast('🧠 생각 모드 꺼짐'); });
     $('search-chip').addEventListener('click', () => { setSearchMode('auto'); showToast('🌐 웹 검색: 자동'); });
     stopBtn.addEventListener('click', async () => {
       if (!accessToken) return;
